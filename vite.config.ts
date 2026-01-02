@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3003,
         host: '0.0.0.0',
-        proxy: {
+        proxy: env.VITE_API_BASE ? undefined : {
           '/api': {
             target: 'http://127.0.0.1:8010',
             changeOrigin: true,
