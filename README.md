@@ -1,4 +1,4 @@
-# Parasara Hora AI (Scaffold)
+# Parasara Hora AI
 
 A starter backend to build a Vedic astrology app that computes divisional charts (D1–D9), Shadbala, transits, Vimshottari Dasha/Antardasha, and detects yogas from free or free‑tier APIs; plus analysis via OpenAI and a follow‑up Q&A chat.
 
@@ -7,7 +7,10 @@ This scaffold focuses on:
 - Clear endpoints for compute, analyze, and conversational Q&A
 - Safe schema and prompts so you can iterate quickly
 
-You can add a web UI (Next.js/React/Flutter) later against the provided API.
+This repo contains:
+- Frontend (Vite + React) in the root (Pages-ready)
+- Optional FastAPI backend under `backend/`
+- Optional Cloudflare Worker proxy under `worker/` (free tier)
 
 ## Stack
 - Backend: FastAPI (Python)
@@ -22,7 +25,7 @@ You can add a web UI (Next.js/React/Flutter) later against the provided API.
 ## Provider strategy
 This project integrates Prokerala Astrology API v2 for real data. You can add more providers under `backend/app/providers/` if needed.
 
-## Getting started
+## Getting started (Dev)
 1) Python 3.10+ recommended.
 2) Create a virtualenv and install deps:
 ```
@@ -36,6 +39,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 5) Open docs at http://127.0.0.1:8000/docs
+
+Frontend dev against backend:
+```
+VITE_API_BASE=http://127.0.0.1:8000 npm run dev
+```
 
 ### Sample request
 POST http://127.0.0.1:8000/api/compute
@@ -82,3 +90,17 @@ The response includes `kundli` (advanced; with yogas + dasha), `divisional` entr
 - Prokerala shadbala numeric scores are available in the Personal Reading PDF module (`/v2/report/personal-reading/instant` with module `shadbala-table`). The JSON API does not expose shadbala at this time; you can return the PDF as a file or base64 from a dedicated endpoint if required.
 - Transit endpoints under Western section support `ayanamsa` to get sidereal positions; we pass Lahiri (`ayanamsa=1`) by default to align with Vedic.
 - Be mindful of API rate limits and data licensing.
+
+## Deploy
+
+GitHub Pages (frontend):
+- Workflow: `.github/workflows/deploy.yml`
+- Set repo variable `VITE_API_BASE` to your API base URL (FastAPI or the Worker URL).
+- Pages URL: `https://<user>.github.io/astrobaba/` (base `/astrobaba/` is set).
+
+Cloudflare Worker proxy (free):
+- Workflow: `.github/workflows/worker-deploy.yml`
+- Add repo secrets: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, plus `PROKERALA_CLIENT_ID`, `PROKERALA_CLIENT_SECRET`, `LOCATIONIQ_KEY`.
+- On push to `main`, the Worker deploys and exposes `/api/*` endpoints that the frontend can call. Then set `VITE_API_BASE` to the Worker URL.
+
+This keeps your keys server-side while using GitHub Pages for the UI.

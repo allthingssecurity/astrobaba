@@ -1,0 +1,11 @@
+name = "parasara-hora-ai-proxy"
+main = "worker/src/index.ts"
+compatibility_date = "2024-12-01"
+account_id = "9bf349d02a79d19077f1cf69a1f2d321"
+
+[vars]
+# Set these in Cloudflare dashboard or via GitHub Actions secrets -> CF env variables
+# PROKERALA_CLIENT_ID = ""
+# PROKERALA_CLIENT_SECRET = ""
+# PROKERALA_BASE_URL = "https://api.prokerala.com/v2"
+# LOCATIONIQ_KEY = ""
