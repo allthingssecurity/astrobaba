@@ -433,6 +433,17 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   const facts = buildFacts(compute);
   const md = facts?.dasha?.mahadasha?.name; const mdEnd = facts?.dasha?.mahadasha?.end;
   const ad = facts?.dasha?.antardasha?.name; const adEnd = facts?.dasha?.antardasha?.end;
+  // Load reference book excerpt (pre-extracted text hosted with the site)
+  let refExcerpt = '';
+  try {
+    const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
+    const r = await fetch(bookUrl);
+    if (r.ok) {
+      const t = await r.text();
+      // Limit to avoid token overflow
+      refExcerpt = t.slice(0, 40000);
+    }
+  } catch {}
   const sys = `You are a precise Vedic astrologer (BPHS). Use ONLY the provided JSON facts. Do NOT invent planets, signs, houses, yogas, degrees, or timelines. If a detail is not present, state "not in data" briefly.
 Ground rules:
 - Never change lagna, timezone, ayanamsa, or Vimshottari periods.
@@ -441,7 +452,7 @@ Ground rules:
 - Be friendly but concise. Keep it readable for a layperson.
 Output: Markdown with sections: Summary, House-by-House (1..12), Career (D10, tie to MD/AD), Relationships (D9), Assets (D4), Children (D7), Timing Now (lock MD/AD).`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nTask: Write a grounded reading. For each house: 1) What the house generally covers, 2) What the sign + occupants imply in plain language, 3) One practical tip. Do not overreach. Mention "not in data" where necessary.`;
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nReference excerpt (extract 10-15 best practices/frameworks first, then apply them):\n\n${refExcerpt}\n\nTask: Write a grounded reading. For each house: 1) What the house generally covers, 2) What the sign + occupants imply in plain language, 3) One practical tip. Tie Career to D10, Relationships to D9, Assets to D4, Children to D7. Do not overreach. Mention "not in data" where necessary.`;
 
   if (!env.OPENAI_API_KEY) {
     return json({ analysis: `LLM not available. Here are facts:\n\n${JSON.stringify(facts, null, 2)}` });
