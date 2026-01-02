@@ -5,7 +5,8 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: process.env.GITHUB_PAGES ? '/astrobaba/' : '/',
+      // Use relative base for GitHub Pages to avoid absolute-root path issues
+      base: process.env.GITHUB_PAGES ? './' : '/',
       server: {
         port: 3003,
         host: '0.0.0.0',
