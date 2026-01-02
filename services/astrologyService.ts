@@ -142,6 +142,17 @@ export const analyzeWithBackend = async (compute: any, question?: string): Promi
   return data.analysis as string;
 };
 
+export const analyzeWithLLM = async (compute: any): Promise<string> => {
+  const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ compute })
+  });
+  if (!resp.ok) throw new Error('Analyze LLM failed');
+  const data = await resp.json();
+  return data.analysis as string;
+};
+
 export const chatWithBackend = async (sessionId: string, message: string, context?: any): Promise<string> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',

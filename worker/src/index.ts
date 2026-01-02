@@ -343,6 +343,126 @@ async function handleAnalyze(req: Request): Promise<Response> {
   return json({ analysis: [...lines, '', ...narrative].join('\n') });
 }
 
+function houseName(n: number): string {
+  const names: Record<number, string> = {
+    1: 'Tanu (Self)', 2: 'Dhana (Wealth)', 3: 'Sahaja (Siblings)', 4: 'Sukha (Home)',
+    5: 'Putra (Creativity)', 6: 'Ripu (Health)', 7: 'Yuvati (Partnership)', 8: 'Randhra (Transformation)',
+    9: 'Dharma (Fortune)', 10: 'Karma (Career)', 11: 'Labha (Gains)', 12: 'Vyaya (Loss/Spiritual)'
+  };
+  return names[n] || `House ${n}`;
+}
+
+function buildFacts(compute: any) {
+  const kundli = compute?.kundli?.data || {};
+  const birth = compute?.meta?.birth || {};
+  const d1 = compute?.divisional?.lagna?.data || {};
+  const d9 = compute?.divisional?.navamsa?.data || {};
+  const d10 = compute?.divisional?.dasamsa?.data || {};
+  const d4 = compute?.divisional?.chaturthamsa?.data || {};
+  const d7 = compute?.divisional?.saptamsa?.data || {};
+  // Ascendant
+  let ascSign: string | undefined; let ascDeg: number | undefined;
+  for (const hb of (d1.divisional_positions || [])) {
+    for (const p of (hb.planet_positions || [])) if (p?.planet?.name === 'Ascendant') { ascSign = hb?.rasi?.name; ascDeg = p?.sign_degree; break; }
+    if (ascSign) break;
+  }
+  const facts: any = {
+    birth,
+    ascendant: ascSign,
+    asc_degree: ascDeg,
+    moon_sign: kundli?.nakshatra_details?.chandra_rasi?.name,
+    nakshatra: kundli?.nakshatra_details?.nakshatra?.name,
+    houses: {} as Record<number, { sign: string; lord?: string; occupants: { planet: string; sign: string }[] }>,
+    vargas: {} as Record<string, any>,
+    dasha: {} as any,
+  };
+  const lord: Record<string, string> = { Mesha:'Mars', Vrishabha:'Venus', Vrishabh:'Venus', Mithuna:'Mercury', Karka:'Moon', 'Karkaṭa':'Moon', Simha:'Sun', Kanya:'Mercury', Tula:'Venus', Vrischika:'Mars', Vrichika:'Mars', Dhanu:'Jupiter', Makara:'Saturn', Kumbha:'Saturn', Meena:'Jupiter' };
+  const byHouse: Record<number, { planet:string; sign:string }[]> = {};
+  for (const hb of (d1.divisional_positions || [])) {
+    const h = hb?.house?.number; const sign = hb?.rasi?.name;
+    if (!h || !sign) continue;
+    for (const p of (hb?.planet_positions || [])) {
+      const nm = p?.planet?.name; if (nm && nm !== 'Ascendant') {
+        byHouse[h] = byHouse[h] || []; byHouse[h].push({ planet: nm, sign });
+      }
+    }
+  }
+  for (let h=1; h<=12; h++) {
+    const d = (d1.divisional_positions || []).find((x:any)=>x?.house?.number===h);
+    const sign = d?.rasi?.name;
+    facts.houses[h] = { sign, lord: lord[sign || ''] , occupants: byHouse[h] || [] };
+  }
+  function packVarga(name: string, data: any) {
+    if (!data || !data.divisional_positions) return null;
+    const list: any[] = [];
+    for (const hb of data.divisional_positions) {
+      const h = hb?.house?.number; const sign = hb?.rasi?.name;
+      const occ = [] as any[];
+      for (const p of (hb?.planet_positions || [])) {
+        const nm = p?.planet?.name; if (nm) occ.push({ planet: nm, degree: p?.sign_degree, sign });
+      }
+      list.push({ house: h, sign, occupants: occ });
+    }
+    return { chart: name, positions: list };
+  }
+  facts.vargas.d1 = packVarga('D1 Rasi', d1);
+  facts.vargas.d9 = packVarga('D9 Navamsa', d9);
+  facts.vargas.d10 = packVarga('D10 Dasamsa', d10);
+  facts.vargas.d4 = packVarga('D4 Chaturthamsa', d4);
+  facts.vargas.d7 = packVarga('D7 Saptamsa', d7);
+  // Dasha now
+  const birthIso = (birth?.date && birth?.time && birth?.timezone) ? `${birth.date}T${birth.time}${birth.timezone}` : undefined;
+  const dasha = kundli?.vimshottari_dasha || kundli;
+  if (Array.isArray(dasha?.dasha_periods)) {
+    const md = currentPeriod(dasha.dasha_periods, birthIso);
+    const obj: any = {};
+    if (md) {
+      obj.mahadasha = { name: md.name, end: md.end };
+      if (Array.isArray(md.antardasha)) {
+        const ad = currentPeriod(md.antardasha, birthIso);
+        if (ad) obj.antardasha = { name: ad.name, end: ad.end };
+      }
+    }
+    facts.dasha = obj;
+  }
+  return facts;
+}
+
+async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
+  const { compute } = await req.json() as any;
+  const facts = buildFacts(compute);
+  const md = facts?.dasha?.mahadasha?.name; const mdEnd = facts?.dasha?.mahadasha?.end;
+  const ad = facts?.dasha?.antardasha?.name; const adEnd = facts?.dasha?.antardasha?.end;
+  const sys = `You are a precise Vedic astrologer (BPHS). Use ONLY the provided JSON facts. Do NOT invent planets, signs, houses, yogas, degrees, or timelines. If a detail is not present, state "not in data" briefly.
+Ground rules:
+- Never change lagna, timezone, ayanamsa, or Vimshottari periods.
+- Do not claim yogas unless explicitly present in facts (yoga list is not provided: avoid yogas).
+- Avoid aspects unless explicitly listed (none provided).
+- Be friendly but concise. Keep it readable for a layperson.
+Output: Markdown with sections: Summary, House-by-House (1..12), Career (D10, tie to MD/AD), Relationships (D9), Assets (D4), Children (D7), Timing Now (lock MD/AD).`;
+  const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nTask: Write a grounded reading. For each house: 1) What the house generally covers, 2) What the sign + occupants imply in plain language, 3) One practical tip. Do not overreach. Mention "not in data" where necessary.`;
+
+  if (!env.OPENAI_API_KEY) {
+    return json({ analysis: `LLM not available. Here are facts:\n\n${JSON.stringify(facts, null, 2)}` });
+  }
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: user }
+      ]
+    })
+  });
+  if (!r.ok) return err('openai_failed', 502);
+  const data = await r.json() as any;
+  const text = data?.choices?.[0]?.message?.content || 'No answer';
+  return json({ analysis: text });
+}
 async function handleChat(req: Request, env: Env): Promise<Response> {
   const body = await req.json() as any;
   const message = body?.message || '';
@@ -483,6 +603,7 @@ export default {
       if (url.pathname === '/api/geo/resolve' && request.method === 'GET') return handleGeoResolve(url, env);
       if (url.pathname === '/api/compute' && request.method === 'POST') return handleCompute(request, env);
       if (url.pathname === '/api/analyze' && request.method === 'POST') return handleAnalyze(request);
+      if (url.pathname === '/api/analyze-llm' && request.method === 'POST') return handleAnalyzeLLM(request, env);
       if (url.pathname === '/api/chat' && request.method === 'POST') return handleChat(request, env);
       if (url.pathname === '/api/shadbala/pdf' && request.method === 'POST') return handleShadbalaPdf(request, env);
       if (url.pathname === '/api/shadbala/json') return err('Not implemented on Worker; use PDF', 501);

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BirthDetails, FullHoroscope, ChatMessage, ChartData, ComputeBundle } from './types';
 import { API_BASE, calculateCharts, fetchShadbala, downloadShadbalaPdf } from './services/astrologyService';
 import { analyzeHoroscope, chatWithAstrologer } from './services/geminiService';
+import { analyzeWithLLM } from './services/astrologyService';
 import SouthIndianChart from './components/ChartVisual';
 import ReactMarkdown from 'react-markdown';
 
@@ -9,6 +10,7 @@ const App: React.FC = () => {
   const [step, setStep] = useState<'input' | 'dashboard'>('input');
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [llmAnalyzing, setLlmAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState<'d1' | 'd9' | 'd10' | 'd4' | 'd7'>('d1');
   
   const [birthDetails, setBirthDetails] = useState<BirthDetails>({
@@ -165,10 +167,10 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500">
-                Parasara Hora AI
+                AstroBaba
               </h1>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest">Advanced Vedic Analytics</p>
-            </div>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">Vedic Charts & Guidance</p>
+              </div>
           </div>
           {step === 'dashboard' && (
             <button 
@@ -445,8 +447,26 @@ const App: React.FC = () => {
                      <span className="text-xl">📜</span>
                      Vedic Report & Analysis
                    </h3>
-                   <div className="flex gap-2">
+                   <div className="flex gap-2 items-center">
                      <span className="text-[10px] bg-purple-900/40 text-purple-200 border border-purple-500/30 px-2 py-1 rounded uppercase tracking-wider">Parasara Hora Sastra</span>
+                     <button
+                       onClick={async ()=>{
+                         if (!computeBundle) return;
+                         setLlmAnalyzing(true);
+                         try {
+                           const text = await analyzeWithLLM(computeBundle.compute);
+                           setChatHistory([{ role: 'model', text }]);
+                         } catch (e) {
+                           alert('Could not generate detailed analysis.');
+                         } finally {
+                           setLlmAnalyzing(false);
+                         }
+                       }}
+                       className="text-[10px] px-2 py-1 rounded border border-slate-600 hover:border-amber-500 hover:text-amber-300 disabled:opacity-50"
+                       disabled={llmAnalyzing}
+                     >
+                       {llmAnalyzing ? 'Generating…' : 'Generate Detailed Analysis'}
+                     </button>
                    </div>
                 </div>
                 
