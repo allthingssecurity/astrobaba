@@ -351,12 +351,15 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
 
   // Build minimal chart context
   let contextText = '';
+  let mdName: string | undefined; let mdEnd: string | undefined;
+  let adName: string | undefined; let adEnd: string | undefined;
   try {
     const kundli = ctx?.kundli?.data || {};
     const d1 = ctx?.divisional?.lagna?.data || {};
     const birth = ctx?.meta?.birth || {};
     const moonSign = kundli?.nakshatra_details?.chandra_rasi?.name;
     const nak = kundli?.nakshatra_details?.nakshatra?.name;
+    const birthIso = (birth?.date && birth?.time && birth?.timezone) ? `${birth.date}T${birth.time}${birth.timezone}` : undefined;
     let ascSign: string | undefined;
     for (const hb of (d1.divisional_positions || [])) {
       for (const p of (hb.planet_positions || [])) if (p?.planet?.name === 'Ascendant') { ascSign = hb?.rasi?.name; break; }
@@ -374,11 +377,27 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
       }
     }
     if (picks.length) parts.push('D1 placements: ' + picks.join(', '));
+    // Dasha grounding
+    const dasha = kundli?.vimshottari_dasha || kundli;
+    if (Array.isArray(dasha?.dasha_periods)) {
+      const md = currentPeriod(dasha.dasha_periods, birthIso);
+      if (md) {
+        mdName = md.name; mdEnd = (md.end || '').split('T')[0];
+        if (Array.isArray(md.antardasha)) {
+          const ad = currentPeriod(md.antardasha, birthIso);
+          if (ad) { adName = ad.name; adEnd = (ad.end || '').split('T')[0]; }
+        }
+      }
+    }
+    if (mdName) {
+      parts.push(`Current Vimshottari: Mahadasha=${mdName}${mdEnd?` (ends ${mdEnd})`:''}${adName?`; Antardasha=${adName}${adEnd?` (ends ${adEnd})`:''}`:''}`);
+    }
     contextText = parts.join('\n');
   } catch {}
 
-  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements/timing. Be concise, clear, kind. No fabricated yogas. Do not change lagna/timezone.';
-  const userPrompt = `${contextText ? contextText + '\n\n' : ''}Question: ${message}`;
+  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start.';
+  const constraints = mdName ? `Lock these timings: Mahadasha=${mdName}${mdEnd?` (ends ${mdEnd})`:''}${adName?`; Antardasha=${adName}${adEnd?` (ends ${adEnd})`:''}`:''}` : '';
+  const userPrompt = `${contextText ? contextText + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}`;
 
   if (!env.OPENAI_API_KEY) {
     return json({ reply: `I will keep it practical and chart-grounded. ${message}` });
@@ -388,7 +407,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      temperature: 0.3,
+      temperature: 0.2,
       messages: [
         { role: 'system', content: sys },
         { role: 'user', content: userPrompt }
