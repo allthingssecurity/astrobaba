@@ -1,0 +1,5 @@
+{
+  "name": "Parasara Hora AI",
+  "description": "A comprehensive Vedic Astrology application that calculates charts (D1-D9), planetary strength (Shadbala), and provides deep life analysis based strictly on the Brihat Parasara Hora Sastra using Gemini AI.",
+  "requestFramePermissions": []
+}
