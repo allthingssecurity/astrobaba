@@ -452,6 +452,15 @@ export default {
       }});
     }
     try {
+      if (url.pathname === '/api/health' && request.method === 'GET') {
+        // Simple diagnostics to verify bindings and routing from the browser
+        return json({
+          ok: true,
+          has_openai: !!env.OPENAI_API_KEY,
+          account_bound: !!env.PROKERALA_CLIENT_ID && !!env.PROKERALA_CLIENT_SECRET,
+          has_locationiq: !!env.LOCATIONIQ_KEY,
+        });
+      }
       if (url.pathname === '/api/geo/resolve' && request.method === 'GET') return handleGeoResolve(url, env);
       if (url.pathname === '/api/compute' && request.method === 'POST') return handleCompute(request, env);
       if (url.pathname === '/api/analyze' && request.method === 'POST') return handleAnalyze(request);

@@ -15,6 +15,7 @@ jobs:
       PROKERALA_CLIENT_SECRET: ${{ secrets.PROKERALA_CLIENT_SECRET }}
       LOCATIONIQ_KEY: ${{ secrets.LOCATIONIQ_KEY }}
       PROKERALA_BASE_URL: https://api.prokerala.com/v2
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -44,4 +45,5 @@ jobs:
             --var PROKERALA_CLIENT_ID:${PROKERALA_CLIENT_ID} \
             --var PROKERALA_CLIENT_SECRET:${PROKERALA_CLIENT_SECRET} \
             --var PROKERALA_BASE_URL:${PROKERALA_BASE_URL} \
-            --var LOCATIONIQ_KEY:${LOCATIONIQ_KEY}
+            --var LOCATIONIQ_KEY:${LOCATIONIQ_KEY} \
+            --var OPENAI_API_KEY:${OPENAI_API_KEY}
