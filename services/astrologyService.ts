@@ -102,7 +102,7 @@ export const calculateCharts = async (
   if (latitude != null) birth.latitude = latitude;
   if (longitude != null) birth.longitude = longitude;
 
-  const resp = await fetch(`${API_BASE}/compute`, {
+  const resp = await fetch(`${API_BASE}/api/compute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ birth, include_divisional: ['lagna','navamsa'], include_transits: true })
@@ -132,7 +132,7 @@ export const calculateCharts = async (
 };
 
 export const analyzeWithBackend = async (compute: any, question?: string): Promise<string> => {
-  const resp = await fetch(`${API_BASE}/analyze`, {
+  const resp = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ compute, question })
@@ -143,7 +143,7 @@ export const analyzeWithBackend = async (compute: any, question?: string): Promi
 };
 
 export const chatWithBackend = async (sessionId: string, message: string, context?: any): Promise<string> => {
-  const resp = await fetch(`${API_BASE}/chat`, {
+  const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, message, context })
@@ -187,7 +187,7 @@ export const fetchShadbala = async (
     location: birth.location || '',
     la: birth.la || 'en',
   };
-  const resp = await fetch(`${API_BASE}/shadbala/json`, {
+  const resp = await fetch(`${API_BASE}/api/shadbala/json`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -218,7 +218,7 @@ export const downloadShadbalaPdf = async (
     location: birth.location || '',
     la: birth.la || 'en',
   };
-  const resp = await fetch(`${API_BASE}/shadbala/pdf`, {
+  const resp = await fetch(`${API_BASE}/api/shadbala/pdf`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

@@ -40,6 +40,14 @@ jobs:
       - name: Add SPA 404 redirect
         run: cp dist/index.html dist/404.html
 
+      - name: Add .nojekyll
+        run: echo > dist/.nojekyll
+
+      - name: Debug dist index.html
+        run: |
+          echo "Built with VITE_API_BASE=${{ vars.VITE_API_BASE }} GITHUB_PAGES=${{ env.GITHUB_PAGES }}"
+          sed -n '1,120p' dist/index.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

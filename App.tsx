@@ -40,7 +40,7 @@ const App: React.FC = () => {
     }
     setResolving(true);
     try {
-      const r = await fetch(`${API_BASE}/geo/resolve?q=${encodeURIComponent(birthDetails.location)}`);
+      const r = await fetch(`${API_BASE}/api/geo/resolve?q=${encodeURIComponent(birthDetails.location)}`);
       if (!r.ok) throw new Error(`Resolve failed (${r.status})`);
       const g = await r.json();
       const obj = { display: g.display_name as string, lat: g.latitude as number, lon: g.longitude as number, offset: g.offset as string };
@@ -355,7 +355,7 @@ const App: React.FC = () => {
                             if (!birthMeta) { alert('Missing birth meta to reload chart'); return; }
                             const chartType = activeTab === 'd10' ? 'dasamsa' : activeTab === 'd4' ? 'chaturthamsa' : 'saptamsa';
                             try {
-                              const resp = await fetch(`${API_BASE}/compute`, {
+                              const resp = await fetch(`${API_BASE}/api/compute`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ birth: birthMeta, include_divisional: [chartType], include_transits: false })
