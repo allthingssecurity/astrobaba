@@ -8,6 +8,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      PROKERALA_CLIENT_ID: ${{ secrets.PROKERALA_CLIENT_ID }}
+      PROKERALA_CLIENT_SECRET: ${{ secrets.PROKERALA_CLIENT_SECRET }}
+      LOCATIONIQ_KEY: ${{ secrets.LOCATIONIQ_KEY }}
+      PROKERALA_BASE_URL: https://api.prokerala.com/v2
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
@@ -16,18 +23,25 @@ jobs:
           node-version: 20
       - name: Install Wrangler
         run: npm i -g wrangler@3
+      - name: Debug secrets presence (masked)
+        run: |
+          for k in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID PROKERALA_CLIENT_ID PROKERALA_CLIENT_SECRET LOCATIONIQ_KEY OPENAI_API_KEY; do
+            if [ -n "$(printenv $k)" ]; then
+              echo "$k: present"
+            else
+              echo "$k: missing"
+            fi
+          done
+      - name: Check required secrets
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || (echo "CLOUDFLARE_API_TOKEN missing" && exit 1)
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || (echo "CLOUDFLARE_ACCOUNT_ID missing" && exit 1)
+      - name: Wrangler version
+        run: wrangler --version
       - name: Publish Worker
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          PROKERALA_CLIENT_ID: ${{ secrets.PROKERALA_CLIENT_ID }}
-          PROKERALA_CLIENT_SECRET: ${{ secrets.PROKERALA_CLIENT_SECRET }}
-          LOCATIONIQ_KEY: ${{ secrets.LOCATIONIQ_KEY }}
-          PROKERALA_BASE_URL: https://api.prokerala.com/v2
         run: |
           wrangler deploy \
             --var PROKERALA_CLIENT_ID:${PROKERALA_CLIENT_ID} \
             --var PROKERALA_CLIENT_SECRET:${PROKERALA_CLIENT_SECRET} \
             --var PROKERALA_BASE_URL:${PROKERALA_BASE_URL} \
             --var LOCATIONIQ_KEY:${LOCATIONIQ_KEY}
-

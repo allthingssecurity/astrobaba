@@ -1,6 +1,6 @@
 import { ChartData, PlanetaryPosition, PlanetName, ShadbalaData, FullHoroscope, ComputeBundle } from '../types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE || '/api';
+export const API_BASE = (import.meta as any).env?.VITE_API_BASE || '/api';
 
 export const RASI_TO_EN: Record<string, string> = {
   Mesha: 'Aries',
