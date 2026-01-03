@@ -561,7 +561,7 @@ Citation sources (BV Raman + Parasara + Seshadri Iyer):
 - Use citations implicitly; do NOT include any code markers in the visible report text.
 - Close with a References section listing BV Raman, Parasara, and Seshadri Iyer quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
-  const langNote = lang === 'hi' ? 'Write the report in Hindi.' : 'Write the report in English.';
+  const langNote = lang === 'hi' ? 'IMPORTANT: Respond only in Hindi.' : 'Respond in English.';
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
   const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\n${langNote}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases):\n\n${paraExcerpt}\n\nSeshadri Iyer excerpt (extract 4–6 techniques with quoted phrases):\n\n${iyerExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
 - Every bullet must contain a "Signal:" clause with at least two placements (e.g., "Signal: D1 Mars in H8 Scorpio; D10 Saturn in H10 Capricorn").
@@ -658,6 +658,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
         send('trace', { text: msg });
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
+      sendTrace(`Language: ${lang === 'hi' ? 'Hindi' : 'English'}`);
       sendTrace('Starting detailed analysis');
       sendTrace('Parsing birth data and chart facts');
       sendTrace('Checking required vargas (D1, D9, D10, D4, D7)');
@@ -679,7 +680,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       sendTrace(`Consistency score: ${score.toFixed(2)}`);
       sendTrace('Applying refinements');
 
-      const finalPrompt = `${user}\n\nApply these refinements (if any):\n${refinements.join('\n') || 'None'}\n\nRewrite the report accordingly.`;
+        const finalPrompt = `${user}\n\n${langNote}\n\nApply these refinements (if any):\n${refinements.join('\n') || 'None'}\n\nRewrite the report accordingly.`;
       const sr = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
@@ -1091,10 +1092,13 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         const bvPrompt = `${streamPrompt}
+${langNote}
 Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
         const paraPrompt = `${streamPrompt}
+${langNote}
 Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
         const iyerPrompt = `${streamPrompt}
+${langNote}
 Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
 
         sendTrace('Draft pass: BV Raman');
@@ -1174,6 +1178,7 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
         sendTrace('Applying refinements');
 
         const finalPrompt = `${streamPrompt}
+${langNote}
 
 Consensus (if any):
 ${consensus.join('\\n') || 'None'}
