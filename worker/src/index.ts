@@ -571,7 +571,7 @@ function detectIntentCharts(message: string): string[] {
   const m = message.toLowerCase();
   const need: Set<string> = new Set();
   if (/career|job|promotion|work|boss|role|profession/.test(m)) need.add('dasamsa'); // D10
-  if (/marriage|spouse|partner|relationship|wife|husband/.test(m)) need.add('navamsa'); // D9
+  if (/marriage|married|spouse|partner|relationship|wife|husband/.test(m)) need.add('navamsa'); // D9
   if (/property|house|real\s?estate|asset|land|home|vehicle/.test(m)) need.add('chaturthamsa'); // D4
   if (/child|children|progeny|son|daughter|fertility/.test(m)) need.add('saptamsa'); // D7
   // Always ensure D1
@@ -625,7 +625,15 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
       if (ascSign) break;
     }
     const parts: string[] = [];
-    if (birth?.date && birth?.time && birth?.timezone) parts.push(`Birth: ${birth.date} ${birth.time} ${birth.timezone}${birth?.location?` | ${birth.location}`:''}`);
+    if (birth?.date && birth?.time && birth?.timezone) {
+      parts.push(`Birth: ${birth.date} ${birth.time} ${birth.timezone}${birth?.location?` | ${birth.location}`:''}`);
+      try {
+        const now = new Date();
+        const dob = new Date(`${birth.date}T00:00:00${birth.timezone}`);
+        const age = Math.max(0, Math.floor((now.getTime() - dob.getTime()) / (365.25 * 24 * 3600 * 1000)));
+        parts.push(`Age: ${age}`);
+      } catch {}
+    }
     if (ascSign) parts.push(`Ascendant: ${ascSign}`);
     if (moonSign || nak) parts.push(`Moon: ${moonSign || '?'}; Nakshatra: ${nak || '?'}`);
     const picks: string[] = [];
@@ -654,16 +662,16 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     contextText = parts.join('\n');
   } catch {}
 
-  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start.';
+  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), combine age + chart signals + MD/AD and state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened.';
   const constraints = mdName ? `Lock these timings: Mahadasha=${mdName}${mdEnd?` (ends ${mdEnd})`:''}${adName?`; Antardasha=${adName}${adEnd?` (ends ${adEnd})`:''}`:''}` : '';
   const userPrompt = `${contextText ? contextText + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}`;
 
   // Enrich context charts on-demand based on intent
   let usedCharts: string[] = [];
   try {
+    const need = detectIntentCharts(message);
+    usedCharts = need.slice();
     if (ctx) {
-      const need = detectIntentCharts(message);
-      usedCharts = need.slice();
       const enriched = await ensureDivisionalCharts(env, ctx.compute || ctx, need);
       ctx = enriched;
     }
