@@ -249,6 +249,7 @@ const App: React.FC = () => {
             }
             return next;
           });
+          if (payload?.trace && payload.trace.length > 0) setAnalysisTrace(payload.trace);
         }
         ,
         (msg) => {
@@ -259,6 +260,7 @@ const App: React.FC = () => {
       // Fallback to non-stream if SSE fails
       const response = await chatWithAstrologer('default-session', question, computeBundle || undefined, 5);
       setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts, trace: response.trace, refinement: response.refinement }]);
+      if (response.trace && response.trace.length > 0) setAnalysisTrace(response.trace);
     } finally {
       setPendingCharts([]);
       setAnalyzing(false);
@@ -339,8 +341,8 @@ const App: React.FC = () => {
 
   const downloadAnalysisPdf = () => {
     if (pdfBusy) return;
-    const latest = [...chatHistory].reverse().find((m) => m.role === 'model' && m.text);
-    if (!latest) return;
+    const entries = chatHistory.filter((m) => m.text && m.text.trim());
+    if (entries.length === 0) return;
     setPdfBusy(true);
     try {
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -352,17 +354,32 @@ const App: React.FC = () => {
       doc.text(title, margin, 50);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(11);
-      const body = toPlainText(latest.text);
-      const lines = doc.splitTextToSize(body, pageWidth);
       let y = 80;
       const lineHeight = 14;
-      for (const line of lines) {
-        if (y > doc.internal.pageSize.getHeight() - margin) {
-          doc.addPage();
-          y = margin;
+      for (const entry of entries) {
+        const header = entry.role === 'user' ? 'User:' : 'AstroBaba:';
+        doc.setFont('helvetica', 'bold');
+        const headerLines = doc.splitTextToSize(header, pageWidth);
+        for (const line of headerLines) {
+          if (y > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(line, margin, y);
+          y += lineHeight;
         }
-        doc.text(line, margin, y);
-        y += lineHeight;
+        doc.setFont('helvetica', 'normal');
+        const body = toPlainText(entry.text);
+        const lines = doc.splitTextToSize(body, pageWidth);
+        for (const line of lines) {
+          if (y > doc.internal.pageSize.getHeight() - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(line, margin, y);
+          y += lineHeight;
+        }
+        y += lineHeight * 0.6;
       }
       doc.save('astrobaba-analysis.pdf');
     } finally {

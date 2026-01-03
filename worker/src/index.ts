@@ -1011,7 +1011,30 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\n\n' : ''}${constraintsFinal ? constraintsFinal + '\n' : ''}Question: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
-        const sr = await callOpenAI(streamPrompt, true);
+        sendTrace('Draft pass for follow-up');
+        const draftResp = await callOpenAI(streamPrompt, false);
+        if (!draftResp.ok) throw new Error('openai_failed');
+        const draftData = await draftResp.json() as any;
+        const draftText = draftData?.choices?.[0]?.message?.content || 'No answer';
+        sendTrace('Verification pass for follow-up');
+        const verifyPrompt = `Context:\n${builtFinal.text || ''}\n\nDraft:\n${draftText}\n\nTask: Verify draft against chart context and BPHS/BV/Parasara principles. Output ONLY JSON:\n{"score":0.0-1.0,"issues":["..."],"refinements":["..."]}`;
+        const verifyResp = await callOpenAI(verifyPrompt, false);
+        let refinements: string[] = [];
+        let score = 0;
+        if (verifyResp.ok) {
+          const verifyData = await verifyResp.json() as any;
+          const verifyText = verifyData?.choices?.[0]?.message?.content || '{}';
+          try {
+            const parsed = JSON.parse(verifyText);
+            refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
+            score = typeof parsed.score === 'number' ? parsed.score : 0;
+            if (parsed.issues && parsed.issues.length) sendTrace(`Issues found: ${parsed.issues.length}`);
+          } catch {}
+        }
+        sendTrace(`Consistency score: ${score.toFixed(2)}`);
+        sendTrace('Applying refinements');
+        const finalPrompt = `${streamPrompt}\n\nApply these refinements (if any):\n${refinements.join('\n') || 'None'}`;
+        const sr = await callOpenAI(finalPrompt, true);
         if (!sr.ok || !sr.body) throw new Error('openai_failed');
         const reader = sr.body.getReader();
         let buffer = '';

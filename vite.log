@@ -169,3 +169,8 @@
       at async EnvironmentPluginContainer.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42323:18)
       at async loadAndTransform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35739:27)
       at async viteTransformMiddleware (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:37254:24)
+1:46:07 pm [vite] (client) page reload App.tsx
+1:46:08 pm [vite] (client) ✨ new dependencies optimized: jspdf
+1:46:08 pm [vite] (client) ✨ optimized dependencies changed. reloading
+1:46:13 pm [vite] (client) hmr update /App.tsx
+1:46:20 pm [vite] (client) hmr update /App.tsx
