@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BirthDetails, FullHoroscope, ChatMessage, ChartData, ComputeBundle } from './types';
-import { API_BASE, calculateCharts, fetchShadbala, downloadShadbalaPdf } from './services/astrologyService';
+import { API_BASE, calculateCharts, fetchShadbala, downloadShadbalaPdf, analyzeWithLLMStream } from './services/astrologyService';
 import { analyzeHoroscope, chatWithAstrologer, chatWithAstrologerStream } from './services/geminiService';
 import { analyzeWithLLM } from './services/astrologyService';
 import SouthIndianChart from './components/ChartVisual';
@@ -163,11 +163,36 @@ const App: React.FC = () => {
             body: JSON.stringify({ birth: birthMeta, include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'], include_transits: false })
           });
           const enriched = enrichedResp.ok ? await enrichedResp.json() : bundle.compute;
-          const llm = await analyzeWithLLM(enriched);
-          setChatHistory([{ role: 'model', text: llm.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
-          setAnalysisTrace(llm.trace || []);
-          const r = (llm.rationale && llm.rationale.length > 0) ? llm.rationale : deriveRationale(llm.text);
-          setRationale(r);
+          setChatHistory([{ role: 'model', text: '', usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
+          setAnalysisTrace(['Starting detailed analysis...']);
+          await analyzeWithLLMStream(
+            enriched,
+            (chunk) => {
+              setChatHistory((prev) => {
+                const next = [...prev];
+                const idx = next.length - 1;
+                if (idx >= 0 && next[idx].role === 'model') {
+                  next[idx] = { ...next[idx], text: (next[idx].text || '') + chunk };
+                }
+                return next;
+              });
+            },
+            (payload) => {
+              if (payload?.text) {
+                setChatHistory((prev) => {
+                  const next = [...prev];
+                  const idx = next.length - 1;
+                  if (idx >= 0 && next[idx].role === 'model') {
+                    next[idx] = { ...next[idx], text: payload.text };
+                  }
+                  return next;
+                });
+              }
+              setAnalysisTrace(payload?.trace || []);
+              if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
+            },
+            (msg) => setAnalysisTrace((prev) => [...prev, msg])
+          );
         }
       } catch {
         const initialAnalysis = await analyzeHoroscope(birthDetails, bundle);
@@ -652,11 +677,36 @@ const App: React.FC = () => {
                              })
                            });
                            const enriched = resp.ok ? await resp.json() : computeBundle.compute;
-                           const out = await analyzeWithLLM(enriched);
-                           setChatHistory([{ role: 'model', text: out.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
-                           setAnalysisTrace(out.trace || []);
-                           const r = (out.rationale && out.rationale.length>0) ? out.rationale : deriveRationale(out.text);
-                           setRationale(r);
+                           setChatHistory([{ role: 'model', text: '', usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
+                           setAnalysisTrace(['Starting detailed analysis...']);
+                           await analyzeWithLLMStream(
+                             enriched,
+                             (chunk) => {
+                               setChatHistory((prev) => {
+                                 const next = [...prev];
+                                 const idx = next.length - 1;
+                                 if (idx >= 0 && next[idx].role === 'model') {
+                                   next[idx] = { ...next[idx], text: (next[idx].text || '') + chunk };
+                                 }
+                                 return next;
+                               });
+                             },
+                             (payload) => {
+                               if (payload?.text) {
+                                 setChatHistory((prev) => {
+                                   const next = [...prev];
+                                   const idx = next.length - 1;
+                                   if (idx >= 0 && next[idx].role === 'model') {
+                                     next[idx] = { ...next[idx], text: payload.text };
+                                   }
+                                   return next;
+                                 });
+                               }
+                               setAnalysisTrace(payload?.trace || []);
+                               if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
+                             },
+                             (msg) => setAnalysisTrace((prev) => [...prev, msg])
+                           );
                          } catch (e) {
                            alert('Could not generate detailed analysis.');
                          } finally {

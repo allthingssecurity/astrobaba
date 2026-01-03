@@ -153,6 +153,58 @@ export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rati
   return { text: data.analysis as string, rationale: (data.rationale || []) as any[], trace: (data.trace || []) as string[] };
 };
 
+export const analyzeWithLLMStream = async (
+  compute: any,
+  onDelta: (chunk: string) => void,
+  onDone: (payload: { text?: string; rationale?: any[]; trace?: string[] }) => void,
+  onTrace?: (message: string) => void
+): Promise<void> => {
+  const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ compute, stream: true })
+  });
+  if (!resp.ok || !resp.body) throw new Error('Analyze LLM stream failed');
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split(/\n\n/);
+    buffer = parts.pop() || '';
+    for (const part of parts) {
+      const lines = part.split(/\n/);
+      let event = 'message';
+      let data = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.replace('event:', '').trim();
+        if (line.startsWith('data:')) data += line.replace('data:', '').trim();
+      }
+      if (!data) continue;
+      if (event === 'trace') {
+        try {
+          const payload = JSON.parse(data);
+          if (payload?.text && onTrace) onTrace(payload.text as string);
+        } catch {}
+      } else if (event === 'done') {
+        try {
+          const payload = JSON.parse(data);
+          onDone(payload);
+        } catch {
+          onDone({});
+        }
+      } else {
+        try {
+          const payload = JSON.parse(data);
+          if (payload?.type === 'delta' && payload?.text) onDelta(payload.text as string);
+        } catch {}
+      }
+    }
+  }
+};
+
 export const chatWithBackend = async (
   sessionId: string,
   message: string,

@@ -546,39 +546,127 @@ ${"```"}
 
 Do not include any extra prose after the JSON block. Keep bullets short; do not overreach beyond Facts JSON.`;
 
+  const stream = !!body?.stream;
   if (!env.OPENAI_API_KEY) {
     return json({ analysis: `LLM not available. Here are facts:\n\n${JSON.stringify(facts, null, 2)}` });
   }
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+  if (!stream) {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.15,
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: user }
+        ]
+      })
+    });
+    if (!r.ok) return err('openai_failed', 502);
+    const data = await r.json() as any;
+    let text = data?.choices?.[0]?.message?.content || '';
+    let rationale: any[] = [];
+    trace.push('Generated report with BV/P citations');
+    try {
+      const start = text.indexOf('```json');
+      if (start >= 0) {
+        const end = text.indexOf('```', start + 7);
+        const jsonBlock = text.substring(start + 7, end).trim();
+        const parsed = JSON.parse(jsonBlock);
+        if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
+        text = (text.substring(0, start) + text.substring(end + 3)).trim();
+      }
+    } catch {}
+    if (!text) text = 'No answer';
+    return json({ analysis: text, rationale, trace });
+  }
+
+  // Streaming analysis (SSE)
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const sr = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       temperature: 0.15,
+      stream: true,
       messages: [
         { role: 'system', content: sys },
         { role: 'user', content: user }
       ]
     })
   });
-  if (!r.ok) return err('openai_failed', 502);
-  const data = await r.json() as any;
-  let text = data?.choices?.[0]?.message?.content || '';
-  let rationale: any[] = [];
-  trace.push('Generated report with BV/P citations');
-  try {
-    const start = text.indexOf('```json');
-    if (start >= 0) {
-      const end = text.indexOf('```', start + 7);
-      const jsonBlock = text.substring(start + 7, end).trim();
-      const parsed = JSON.parse(jsonBlock);
-      if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
-      // remove code block from analysis markdown
-      text = (text.substring(0, start) + text.substring(end + 3)).trim();
+  if (!sr.ok || !sr.body) return err('openai_failed', 502);
+
+  const streamBody = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, payload: any) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+      };
+      const sendTrace = (msg: string) => {
+        trace.push(msg);
+        send('trace', { text: msg });
+      };
+      sendTrace('Starting detailed analysis');
+      if (refExcerpt) sendTrace('BV Raman excerpt loaded');
+      if (paraExcerpt) sendTrace('Parasara excerpt loaded');
+      sendTrace('Generating report');
+
+      const reader = sr.body!.getReader();
+      let buffer = '';
+      let fullText = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\n/);
+        buffer = lines.pop() || '';
+        for (const lineRaw of lines) {
+          const line = lineRaw.trim();
+          if (!line.startsWith('data:')) continue;
+          const data = line.replace(/^data:\s*/, '');
+          if (data === '[DONE]') {
+            let rationale: any[] = [];
+            let cleaned = fullText;
+            try {
+              const start = fullText.indexOf('```json');
+              if (start >= 0) {
+                const end = fullText.indexOf('```', start + 7);
+                const jsonBlock = fullText.substring(start + 7, end).trim();
+                const parsed = JSON.parse(jsonBlock);
+                if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
+                cleaned = (fullText.substring(0, start) + fullText.substring(end + 3)).trim();
+              }
+            } catch {}
+            send('done', { text: cleaned || 'No answer', rationale, trace });
+            controller.close();
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed?.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`));
+            }
+          } catch {}
+        }
+      }
+      send('done', { text: fullText || 'No answer', rationale: [], trace });
+      controller.close();
     }
-  } catch {}
-  if (!text) text = 'No answer';
-  return json({ analysis: text, rationale, trace });
+  });
+
+  return new Response(streamBody, {
+    status: 200,
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      'access-control-allow-origin': '*'
+    }
+  });
 }
 
 // Intent detection for on-demand varga enrichment in chat
