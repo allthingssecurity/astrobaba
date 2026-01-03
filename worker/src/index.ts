@@ -495,6 +495,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   const ad = facts?.dasha?.antardasha?.name; const adEnd = facts?.dasha?.antardasha?.end;
   // Load reference book excerpt (pre-extracted text hosted with the site)
   let refExcerpt = '';
+  let paraExcerpt = '';
   try {
     const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
     const r = await fetch(bookUrl);
@@ -502,6 +503,14 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
       const t = await r.text();
       // Limit to avoid token overflow (tight, focused excerpt)
       refExcerpt = t.slice(0, 12000);
+    }
+  } catch {}
+  try {
+    const bookUrl2 = 'https://allthingssecurity.github.io/astrobaba/parasara_book.txt';
+    const r2 = await fetch(bookUrl2);
+    if (r2.ok) {
+      const t2 = await r2.text();
+      paraExcerpt = t2.slice(0, 12000);
     }
   } catch {}
   const sys = `You are a precise Vedic astrologer (BPHS) writing a professional, client‑ready report.
@@ -517,14 +526,16 @@ Tone & Format:
 Life‑stage grounding:
 - Use the birth date to infer present age. If a topic (e.g., marriage, children, career) is typically already realized for the age, phrase it in past/present tense (e.g., "likely already married" / "marriage likely occurred in...") rather than future‑prospect language.
 - If age suggests early life, keep future‑oriented phrasing. Avoid generic "prospects" language when it contradicts the age.
-Citations policy (BV Raman reference):
-- First, extract 5–8 "Best Practices" from the reference excerpt as a numbered list BV1..BVn.
+Citation sources (BV Raman + Parasara):
+- Extract 5–8 "Best Practices" from the BV Raman excerpt as a numbered list BV1..BVn.
   • Each BV item: one short quote (5–12 words) in quotes + a concise paraphrase.
-- When applying guidance later, add inline markers like [BV3] where relevant.
-- Close with a References section: list BV1..BVn with quoted phrases and: B. V. Raman, "How to Judge a Horoscope" (reference excerpt). Do NOT invent page numbers.
-- Never cite if a BV item was not actually used.`;
+- Extract 4–6 "Core Principles" from the Parasara excerpt as a numbered list P1..Pn.
+  • Each P item: one short quote (5–12 words) in quotes + a concise paraphrase.
+- When applying guidance later, add inline markers like [BV3] or [P2] where relevant.
+- Close with a References section: list BV1..BVn with quotes and: B. V. Raman, "How to Judge a Horoscope" (reference excerpt); and P1..Pn with quotes and: Maharshi Parashara, "Brihat Parasara Hora Sastra" (reference excerpt). Do NOT invent page numbers.
+- Never cite if an item was not actually used.`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nReference excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8) and at least one [BVx] marker when a best practice is applied.\n\n### Career (D10)\n- Use D10 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### Core Principles (P1..Pn)\n- 4–6 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8) and at least one [BVx] marker when a best practice is applied.\n\n### Career (D10)\n- Use D10 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n- Parasara list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -579,36 +590,32 @@ function detectIntentCharts(message: string): string[] {
   return Array.from(need);
 }
 
-async function ensureDivisionalCharts(env: Env, compute: any, types: string[]): Promise<any> {
-  try {
-    const birth = compute?.meta?.birth;
-    const ayan = compute?.meta?.ayanamsa ?? 1;
-    const la = compute?.meta?.language ?? 'en';
-    if (!(birth?.latitude != null && birth?.longitude != null && birth?.timezone)) return compute;
-    const coords = `${birth.latitude},${birth.longitude}`;
-    const dtiso = `${birth.date}T${birth.time}${birth.timezone}`;
-    const token = await getToken(env);
-    compute.divisional = compute.divisional || {};
-    for (const ct of types) {
-      const ok = compute?.divisional?.[ct]?.data?.divisional_positions?.length;
-      if (ok) continue;
-      try {
-        const r = await prokeralaGet(env, '/astrology/divisional-planet-position', {
-          coordinates: coords, datetime: dtiso, chart_type: ct, ayanamsa: String(ayan), la
-        }, token);
-        if (r.ok) compute.divisional[ct] = await r.json();
-      } catch {}
-    }
-  } catch {}
-  return compute;
+function parseNextCharts(text: string): string[] {
+  const match = text.match(/^\s*NEXT_CHARTS:\s*(.+)\s*$/im);
+  if (!match) return [];
+  const raw = match[1].trim();
+  if (!raw || raw.toLowerCase() === 'none') return [];
+  return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).map((s) => {
+    if (s === 'd1' || s === 'lagna') return 'lagna';
+    if (s === 'd9' || s === 'navamsa') return 'navamsa';
+    if (s === 'd10' || s === 'dasamsa') return 'dasamsa';
+    if (s === 'd4' || s === 'chaturthamsa') return 'chaturthamsa';
+    if (s === 'd7' || s === 'saptamsa') return 'saptamsa';
+    return s;
+  });
 }
-async function handleChat(req: Request, env: Env): Promise<Response> {
-  const body = await req.json() as any;
-  const message = body?.message || '';
-  let ctx = body?.context || null;
-  if (!message) return err('message required', 400);
 
-  // Build minimal chart context
+function availableCharts(ctx: any): string[] {
+  const div = ctx?.divisional || {};
+  const out: string[] = [];
+  for (const key of ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa']) {
+    const ok = div?.[key]?.data?.divisional_positions?.length;
+    if (ok) out.push(key);
+  }
+  return out;
+}
+
+function buildContext(ctx: any): { text: string; mdName?: string; mdEnd?: string; adName?: string; adEnd?: string } {
   let contextText = '';
   let mdName: string | undefined; let mdEnd: string | undefined;
   let adName: string | undefined; let adEnd: string | undefined;
@@ -644,6 +651,8 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
       }
     }
     if (picks.length) parts.push('D1 placements: ' + picks.join(', '));
+    const charts = availableCharts(ctx);
+    if (charts.length) parts.push(`Charts available: ${charts.map(c => c.toUpperCase()).join(', ')}`);
     // Dasha grounding
     const dasha = kundli?.vimshottari_dasha || kundli;
     if (Array.isArray(dasha?.dasha_periods)) {
@@ -661,41 +670,104 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     }
     contextText = parts.join('\n');
   } catch {}
+  return { text: contextText, mdName, mdEnd, adName, adEnd };
+}
 
-  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), combine age + chart signals + MD/AD and state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened.';
-  const constraints = mdName ? `Lock these timings: Mahadasha=${mdName}${mdEnd?` (ends ${mdEnd})`:''}${adName?`; Antardasha=${adName}${adEnd?` (ends ${adEnd})`:''}`:''}` : '';
-  const userPrompt = `${contextText ? contextText + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}`;
-
-  // Enrich context charts on-demand based on intent
-  let usedCharts: string[] = [];
+async function ensureDivisionalCharts(env: Env, compute: any, types: string[]): Promise<any> {
   try {
-    const need = detectIntentCharts(message);
-    usedCharts = need.slice();
-    if (ctx) {
-      const enriched = await ensureDivisionalCharts(env, ctx.compute || ctx, need);
-      ctx = enriched;
+    const birth = compute?.meta?.birth;
+    const ayan = compute?.meta?.ayanamsa ?? 1;
+    const la = compute?.meta?.language ?? 'en';
+    if (!(birth?.latitude != null && birth?.longitude != null && birth?.timezone)) return compute;
+    const coords = `${birth.latitude},${birth.longitude}`;
+    const dtiso = `${birth.date}T${birth.time}${birth.timezone}`;
+    const token = await getToken(env);
+    compute.divisional = compute.divisional || {};
+    for (const ct of types) {
+      const ok = compute?.divisional?.[ct]?.data?.divisional_positions?.length;
+      if (ok) continue;
+      try {
+        const r = await prokeralaGet(env, '/astrology/divisional-planet-position', {
+          coordinates: coords, datetime: dtiso, chart_type: ct, ayanamsa: String(ayan), la
+        }, token);
+        if (r.ok) compute.divisional[ct] = await r.json();
+      } catch {}
     }
   } catch {}
+  return compute;
+}
+async function handleChat(req: Request, env: Env): Promise<Response> {
+  const body = await req.json() as any;
+  const message = body?.message || '';
+  let ctx = body?.context || null;
+  if (!message) return err('message required', 400);
+
+  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened.';
+
+  const maxIterations = Math.min(Math.max(1, body?.max_iterations || 2), 5);
+  let usedCharts: string[] = detectIntentCharts(message);
+  let requestedCharts: string[] = [];
+  const trace: string[] = [];
+  const addedCharts: Set<string> = new Set();
+  let finalText = '';
+  let lastResponse = '';
 
   if (!env.OPENAI_API_KEY) {
-    return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts });
+    return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts, trace });
   }
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      messages: [
-        { role: 'system', content: sys },
-        { role: 'user', content: userPrompt }
-      ]
-    })
-  });
-  if (!r.ok) return err('openai_failed', 502);
-  const data = await r.json() as any;
-  const text = data?.choices?.[0]?.message?.content || 'No answer';
-  return json({ reply: text, used_charts: usedCharts });
+
+  for (let i = 0; i < maxIterations; i++) {
+    const need = Array.from(new Set([...usedCharts, ...requestedCharts]));
+    const before = availableCharts(ctx);
+    if (ctx) {
+      try { ctx = await ensureDivisionalCharts(env, ctx.compute || ctx, need); } catch {}
+    }
+    const after = availableCharts(ctx);
+    const newly = after.filter(c => !before.includes(c));
+    for (const c of newly) addedCharts.add(c);
+    trace.push(`Iteration ${i + 1}: intent charts ${need.map(c => c.toUpperCase()).join(', ') || 'none'}`);
+    if (newly.length) trace.push(`Fetched charts: ${newly.map(c => c.toUpperCase()).join(', ')}`);
+
+    const built = buildContext(ctx || {});
+    const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
+    const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
+
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: userPrompt }
+        ]
+      })
+    });
+    if (!r.ok) return err('openai_failed', 502);
+    const data = await r.json() as any;
+    lastResponse = data?.choices?.[0]?.message?.content || 'No answer';
+    const next = parseNextCharts(lastResponse);
+    finalText = lastResponse.replace(/^\s*NEXT_CHARTS:.*$/im, '').trim();
+    if (next.length === 0) {
+      trace.push('Final answer generated.');
+      break;
+    }
+    const newNeeded = next.filter(c => !need.includes(c));
+    if (newNeeded.length === 0) {
+      trace.push('LLM requested charts already present; finalizing.');
+      break;
+    }
+    requestedCharts = newNeeded;
+    trace.push(`LLM requested charts: ${newNeeded.map(c => c.toUpperCase()).join(', ')}`);
+    if (i === maxIterations - 1) {
+      trace.push('Max iterations reached; finalizing.');
+    }
+  }
+
+  const refinement = addedCharts.size ? `Refined with additional charts: ${Array.from(addedCharts).map(c => c.toUpperCase()).join(', ')}.` : '';
+  const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
+  return json({ reply: finalText || lastResponse, used_charts: finalUsed, trace, refinement });
 }
 
 async function handleGeoResolve(url: URL, env: Env): Promise<Response> {

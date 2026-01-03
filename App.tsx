@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [chartStyle, setChartStyle] = useState<'south-indian' | 'north-indian'>('south-indian');
   const [chartSvgs, setChartSvgs] = useState<Record<string, string>>({});
   const [pendingCharts, setPendingCharts] = useState<string[]>([]);
+  const [showTrace, setShowTrace] = useState(false);
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
   const deriveRationale = (md: string): any[] => {
@@ -189,8 +190,8 @@ const App: React.FC = () => {
     setAnalyzing(true);
 
     try {
-      const response = await chatWithAstrologer('default-session', question, computeBundle || undefined);
-      setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts }]);
+      const response = await chatWithAstrologer('default-session', question, computeBundle || undefined, 5);
+      setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts, trace: response.trace, refinement: response.refinement }]);
     } finally {
       setPendingCharts([]);
       setAnalyzing(false);
@@ -271,6 +272,8 @@ const App: React.FC = () => {
       loadChartSvg(activeTab);
     }
   }, [computeBundle, activeTab, chartStyle]);
+
+  const latestTrace = [...chatHistory].reverse().find((m) => m.role === 'model' && m.trace && m.trace.length)?.trace || [];
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
@@ -629,11 +632,25 @@ const App: React.FC = () => {
                        <input type="checkbox" checked={showSources} onChange={(e)=>setShowSources(e.target.checked)} />
                        Show sources
                      </label>
+                     <label className="flex items-center gap-1 text-[10px] text-slate-400 ml-2 select-none">
+                       <input type="checkbox" checked={showTrace} onChange={(e)=>setShowTrace(e.target.checked)} />
+                       Show trace
+                     </label>
                   </div>
                 </div>
                 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+                  {showTrace && latestTrace.length > 0 && (
+                    <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[11px] text-slate-300">
+                      <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Analysis Trace</div>
+                      <ol className="list-decimal pl-4 space-y-1">
+                        {latestTrace.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
                   {chatHistory.length === 0 && analyzing && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
                       <div className="w-12 h-12 border-4 border-slate-600 border-t-amber-500 rounded-full animate-spin"></div>
@@ -651,6 +668,11 @@ const App: React.FC = () => {
                         {msg.role === 'model' ? (
                           <div className="prose prose-invert prose-sm max-w-none prose-headings:text-amber-200 prose-headings:font-serif prose-strong:text-amber-100 prose-a:text-purple-300">
                             <ReactMarkdown>{msg.text}</ReactMarkdown>
+                            {msg.refinement && (
+                              <div className="mt-3 text-[10px] text-slate-400">
+                                {msg.refinement}
+                              </div>
+                            )}
                             {showSources && rationale.length > 0 && (
                               <div className="mt-6 border-t border-slate-700 pt-3">
                                 <h4 className="text-xs uppercase tracking-widest text-slate-400 mb-2">Sources</h4>

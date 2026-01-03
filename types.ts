@@ -75,4 +75,6 @@ export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
   usedCharts?: string[];
+  trace?: string[];
+  refinement?: string;
 }

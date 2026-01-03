@@ -13,8 +13,9 @@ export const analyzeHoroscope = async (
 export const chatWithAstrologer = async (
   sessionId: string,
   message: string,
-  computeBundle?: ComputeBundle | any
-): Promise<{ reply: string; used_charts?: string[] }> => {
+  computeBundle?: ComputeBundle | any,
+  maxIterations: number = 3
+): Promise<{ reply: string; used_charts?: string[]; trace?: string[]; refinement?: string }> => {
   const context = computeBundle?.compute || undefined;
-  return chatWithBackend(sessionId, message, context);
+  return chatWithBackend(sessionId, message, context, maxIterations);
 };

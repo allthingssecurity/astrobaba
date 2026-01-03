@@ -153,15 +153,25 @@ export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rati
   return { text: data.analysis as string, rationale: (data.rationale || []) as any[] };
 };
 
-export const chatWithBackend = async (sessionId: string, message: string, context?: any): Promise<{ reply: string; used_charts?: string[] }> => {
+export const chatWithBackend = async (
+  sessionId: string,
+  message: string,
+  context?: any,
+  maxIterations: number = 3
+): Promise<{ reply: string; used_charts?: string[]; trace?: string[]; refinement?: string }> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message, context })
+    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations })
   });
   if (!resp.ok) throw new Error('Chat failed');
   const data = await resp.json();
-  return { reply: data.reply as string, used_charts: data.used_charts as string[] | undefined };
+  return {
+    reply: data.reply as string,
+    used_charts: data.used_charts as string[] | undefined,
+    trace: data.trace as string[] | undefined,
+    refinement: data.refinement as string | undefined
+  };
 };
 
 // --- Shadbala helpers ---
