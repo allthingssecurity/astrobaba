@@ -510,6 +510,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   const trace: string[] = [];
   let refExcerpt = '';
   let paraExcerpt = '';
+  let iyerExcerpt = '';
   try {
     const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
     const r = await fetch(bookUrl);
@@ -529,6 +530,15 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
       trace.push('Loaded Parasara excerpt');
     }
   } catch {}
+  try {
+    const bookUrl3 = 'https://allthingssecurity.github.io/astrobaba/iyer_book.txt';
+    const r3 = await fetch(bookUrl3);
+    if (r3.ok) {
+      const t3 = await r3.text();
+      iyerExcerpt = t3.slice(0, 12000);
+      trace.push('Loaded Seshadri Iyer excerpt');
+    }
+  } catch {}
   const sys = `You are a precise Vedic astrologer (BPHS) writing a professional, client‑ready report.
 Rules:
 - Use ONLY the provided JSON facts; never invent planets, signs, houses, aspects, yogas, degrees, or timelines. If a detail is missing, write "not in data".
@@ -543,18 +553,19 @@ Tone & Format:
 Life‑stage grounding:
 - Use the birth date to infer present age. If a topic (e.g., marriage, children, career) is typically already realized for the age, phrase it in past/present tense (e.g., "likely already married" / "marriage likely occurred in...") rather than future‑prospect language.
 - If age suggests early life, keep future‑oriented phrasing. Avoid generic "prospects" language when it contradicts the age.
-Citation sources (BV Raman + Parasara):
+Citation sources (BV Raman + Parasara + Seshadri Iyer):
 - Extract 5–8 "Best Practices (BV Raman)" with a short quote + paraphrase (no BV codes in the report text).
 - Extract 4–6 "Core Principles (Parasara)" with a short quote + paraphrase (no P codes in the report text).
-- Use citations implicitly; do NOT include [BVx]/[Px] markers in the visible report text.
-- Close with a References section listing BV Raman and Parasara quotes with attribution. Do NOT invent page numbers.
+- Extract 4–6 "Techniques (Seshadri Iyer)" with a short quote + paraphrase.
+- Use citations implicitly; do NOT include any code markers in the visible report text.
+- Close with a References section listing BV Raman, Parasara, and Seshadri Iyer quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases):\n\n${paraExcerpt}\n\nSeshadri Iyer excerpt (extract 4–6 techniques with quoted phrases):\n\n${iyerExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
 - Every bullet must contain a "Signal:" clause with at least two placements (e.g., "Signal: D1 Mars in H8 Scorpio; D10 Saturn in H10 Capricorn").
 - Every bullet must contain a "Reason:" clause grounded in BV Raman or Parasara principles (plain language, no codes).
 - Every bullet must contain a "Outcome:" clause specific to the topic.
-- If you cannot cite two placements, say "not in data" and move on.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include Signal/Reason/Outcome.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Signal/Reason/Outcome. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include Signal/Reason/Outcome with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include Signal/Reason/Outcome with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include Signal/Reason/Outcome with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include Signal/Reason/Outcome with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include Signal/Reason/Outcome and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+- If you cannot cite two placements, say "not in data" and move on.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include Signal/Reason/Outcome.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### Techniques (Seshadri Iyer)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Signal/Reason/Outcome. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include Signal/Reason/Outcome with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include Signal/Reason/Outcome with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include Signal/Reason/Outcome with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include Signal/Reason/Outcome with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include Signal/Reason/Outcome and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n- Seshadri Iyer quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -618,7 +629,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
   let draftText = draftData?.choices?.[0]?.message?.content || '';
   if (!draftText) draftText = 'No answer';
 
-  const verifierPrompt = `Facts JSON:\n\n${JSON.stringify(facts)}\n\nBV Raman excerpt:\n${refExcerpt}\n\nParasara excerpt:\n${paraExcerpt}\n\nDraft:\n${draftText}\n\nTask: Verify the draft for internal consistency with the facts, BV Raman best practices, Parasara principles, and general jyotish heuristics. Identify any overreach or inconsistencies and provide refinements. Output ONLY strict JSON:\n{"score":0.0-1.0,"issues":["..."],"refinements":["..."],"rewrite_guidance":"..."}\n`;
+  const verifierPrompt = `Facts JSON:\n\n${JSON.stringify(facts)}\n\nBV Raman excerpt:\n${refExcerpt}\n\nParasara excerpt:\n${paraExcerpt}\n\nSeshadri Iyer excerpt:\n${iyerExcerpt}\n\nDraft:\n${draftText}\n\nTask: Verify the draft for internal consistency with the facts, BV Raman best practices, Parasara principles, Seshadri Iyer techniques, and general jyotish heuristics. Identify any overreach or inconsistencies and provide refinements. Output ONLY strict JSON:\n{"score":0.0-1.0,"issues":["..."],"refinements":["..."],"rewrite_guidance":"..."}\n`;
   const verifyResp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
@@ -650,6 +661,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       sendTrace('Checking required vargas (D1, D9, D10, D4, D7)');
       if (refExcerpt) sendTrace('BV Raman excerpt loaded');
       if (paraExcerpt) sendTrace('Parasara excerpt loaded');
+      if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
       sendTrace('Draft pass (BV Raman + Parasara)');
       sendTrace('Verification pass (Parasara + BV + general heuristics)');
       let score = 0;
@@ -867,6 +879,23 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   let ctx = body?.context || null;
   if (!message) return err('message required', 400);
 
+  // Optional excerpts for verification in chat loop
+  let refExcerpt = '';
+  let paraExcerpt = '';
+  let iyerExcerpt = '';
+  try {
+    const r = await fetch('https://allthingssecurity.github.io/astrobaba/astro_book.txt');
+    if (r.ok) refExcerpt = (await r.text()).slice(0, 6000);
+  } catch {}
+  try {
+    const r = await fetch('https://allthingssecurity.github.io/astrobaba/parasara_book.txt');
+    if (r.ok) paraExcerpt = (await r.text()).slice(0, 6000);
+  } catch {}
+  try {
+    const r = await fetch('https://allthingssecurity.github.io/astrobaba/iyer_book.txt');
+    if (r.ok) iyerExcerpt = (await r.text()).slice(0, 6000);
+  } catch {}
+
   const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened. If the question is ambiguous or missing timeframe, ask 1–2 clarifying questions before answering.';
 
   const maxIterations = Math.min(Math.max(1, body?.max_iterations || 2), 5);
@@ -962,6 +991,9 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
           const intentCharts = detectIntentCharts(message);
           sendTrace(`Intent detected: ${intentCharts.map(c => c.toUpperCase()).join(', ')}`);
         } catch {}
+        if (refExcerpt) sendTrace('BV Raman excerpt loaded');
+        if (paraExcerpt) sendTrace('Parasara excerpt loaded');
+        if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
         sendTrace('Phase 1: Primary reading (BV Raman)');
         // Re-run the loop to emit live trace
         let localCtx = ctx;
@@ -1015,30 +1047,86 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
-        const streamPrompt = `${builtFinal.text ? builtFinal.text + '\n\n' : ''}${constraintsFinal ? constraintsFinal + '\n' : ''}Question: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
-        sendTrace('Draft pass for follow-up');
-        const draftResp = await callOpenAI(streamPrompt, false);
-        if (!draftResp.ok) throw new Error('openai_failed');
-        const draftData = await draftResp.json() as any;
-        const draftText = draftData?.choices?.[0]?.message?.content || 'No answer';
-        sendTrace('Verification pass for follow-up');
-        const verifyPrompt = `Context:\n${builtFinal.text || ''}\n\nDraft:\n${draftText}\n\nTask: Verify draft against chart context and BPHS/BV/Parasara principles. Output ONLY JSON:\n{"score":0.0-1.0,"issues":["..."],"refinements":["..."]}`;
-        const verifyResp = await callOpenAI(verifyPrompt, false);
+        const streamPrompt = `${builtFinal.text ? builtFinal.text + '
+
+' : ''}${constraintsFinal ? constraintsFinal + '
+' : ''}Question: ${message}
+Answer directly. Do NOT include NEXT_CHARTS.`;
+        const bvPrompt = `${streamPrompt}
+Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+        const paraPrompt = `${streamPrompt}
+Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+        const iyerPrompt = `${streamPrompt}
+Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+
+        sendTrace('Draft pass: BV Raman');
+        const bvResp = await callOpenAI(bvPrompt, false);
+        if (!bvResp.ok) throw new Error('openai_failed');
+        const bvData = await bvResp.json() as any;
+        const bvText = bvData?.choices?.[0]?.message?.content || 'No answer';
+
+        sendTrace('Draft pass: Parasara');
+        const paraResp = await callOpenAI(paraPrompt, false);
+        if (!paraResp.ok) throw new Error('openai_failed');
+        const paraData = await paraResp.json() as any;
+        const paraText = paraData?.choices?.[0]?.message?.content || 'No answer';
+
+        sendTrace('Draft pass: Seshadri Iyer');
+        const iyerResp = await callOpenAI(iyerPrompt, false);
+        if (!iyerResp.ok) throw new Error('openai_failed');
+        const iyerData = await iyerResp.json() as any;
+        const iyerText = iyerData?.choices?.[0]?.message?.content || 'No answer';
+
+        sendTrace('Cross-verification across 3 drafts');
+        const comparePrompt = `Context:
+${builtFinal.text || ''}
+
+Draft BV Raman:
+${bvText}
+
+Draft Parasara:
+${paraText}
+
+Draft Seshadri Iyer:
+${iyerText}
+
+Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
+{"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
+        const compareResp = await callOpenAI(comparePrompt, false);
         let refinements: string[] = [];
-        let score = 0;
-        if (verifyResp.ok) {
-          const verifyData = await verifyResp.json() as any;
-          const verifyText = verifyData?.choices?.[0]?.message?.content || '{}';
+        let consensus: string[] = [];
+        let divergences: string[] = [];
+        let scores = { bv: 0, parasara: 0, iyer: 0 };
+        if (compareResp.ok) {
+          const compareData = await compareResp.json() as any;
+          const compareText = compareData?.choices?.[0]?.message?.content || '{}';
           try {
-            const parsed = JSON.parse(verifyText);
+            const parsed = JSON.parse(compareText);
             refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
-            score = typeof parsed.score === 'number' ? parsed.score : 0;
-            if (parsed.issues && parsed.issues.length) sendTrace(`Issues found: ${parsed.issues.length}`);
+            consensus = Array.isArray(parsed.consensus) ? parsed.consensus : [];
+            divergences = Array.isArray(parsed.divergences) ? parsed.divergences : [];
+            if (parsed.scores) {
+              scores = { bv: parsed.scores.bv || 0, parasara: parsed.scores.parasara || 0, iyer: parsed.scores.iyer || 0 };
+            }
           } catch {}
         }
-        sendTrace(`Consistency score: ${score.toFixed(2)}`);
+        sendTrace(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}`);
+        if (divergences.length) sendTrace(`Divergences flagged: ${divergences.length}`);
+        if (consensus.length) sendTrace(`Consensus points: ${consensus.length}`);
         sendTrace('Applying refinements');
-        const finalPrompt = `${streamPrompt}\n\nApply these refinements (if any):\n${refinements.join('\n') || 'None'}`;
+
+        const finalPrompt = `${streamPrompt}
+
+Consensus (if any):
+${consensus.join('\\n') || 'None'}
+
+Divergences (if any):
+${divergences.join('\\n') || 'None'}
+
+Refinements:
+${refinements.join('\\n') || 'None'}
+
+Write the final answer. Explicitly mention if all three concur or if there are disagreements.`;
         const sr = await callOpenAI(finalPrompt, true);
         if (!sr.ok || !sr.body) throw new Error('openai_failed');
         const reader = sr.body.getReader();
