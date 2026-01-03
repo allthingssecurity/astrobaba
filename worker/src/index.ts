@@ -782,50 +782,105 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     return json({ reply: finalText || lastResponse, used_charts: finalUsed, trace, refinement });
   }
 
-  // Stream final answer using OpenAI streaming API
-  const built = buildContext(ctx || {});
-  const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
-  const streamPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
-  trace.push('Streaming final answer.');
-
-  const sr = await callOpenAI(streamPrompt, true);
-  if (!sr.ok || !sr.body) return err('openai_failed', 502);
+  // Stream trace events + final answer using OpenAI streaming API
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  let fullText = '';
   const streamBody = new ReadableStream({
     async start(controller) {
-      const reader = sr.body!.getReader();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\n/);
-        buffer = lines.pop() || '';
-        for (const lineRaw of lines) {
-          const line = lineRaw.trim();
-          if (!line.startsWith('data:')) continue;
-          const data = line.replace(/^data:\s*/, '');
-          if (data === '[DONE]') {
-            const donePayload = JSON.stringify({ used_charts: finalUsed, trace, refinement });
-            controller.enqueue(encoder.encode(`event: done\ndata: ${donePayload}\n\n`));
-            controller.close();
-            return;
+      const send = (event: string, payload: any) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+      };
+      const sendTrace = (msg: string) => {
+        trace.push(msg);
+        send('trace', { text: msg });
+      };
+      try {
+        sendTrace('Agent started');
+        // Re-run the loop to emit live trace
+        let localCtx = ctx;
+        let localUsed = usedCharts.slice();
+        let localRequested: string[] = [];
+        let localAdded: Set<string> = new Set();
+        for (let i = 0; i < maxIterations; i++) {
+          const need = Array.from(new Set([...localUsed, ...localRequested]));
+          sendTrace(`Iteration ${i + 1}: intent charts ${need.map(c => c.toUpperCase()).join(', ') || 'none'}`);
+          const before = availableCharts(localCtx);
+          if (localCtx) {
+            try { localCtx = await ensureDivisionalCharts(env, (localCtx as any).compute || localCtx, need); } catch {}
           }
-          try {
-            const parsed = JSON.parse(data);
-            const delta = parsed?.choices?.[0]?.delta?.content;
-            if (delta) {
-              fullText += delta;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`));
-            }
-          } catch {}
+          const after = availableCharts(localCtx);
+          const newly = after.filter(c => !before.includes(c));
+          for (const c of newly) localAdded.add(c);
+          if (newly.length) sendTrace(`Fetched charts: ${newly.map(c => c.toUpperCase()).join(', ')}`);
+          const built = buildContext(localCtx || {});
+          const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
+          const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
+          const r = await callOpenAI(userPrompt, false);
+          if (!r.ok) throw new Error('openai_failed');
+          const data = await r.json() as any;
+          lastResponse = data?.choices?.[0]?.message?.content || 'No answer';
+          const next = parseNextCharts(lastResponse);
+          finalText = lastResponse.replace(/^\s*NEXT_CHARTS:.*$/im, '').trim();
+          if (next.length === 0) {
+            sendTrace('Final answer ready; streaming tokens');
+            ctx = localCtx;
+            usedCharts = localUsed;
+            requestedCharts = localRequested;
+            addedCharts.clear();
+            for (const c of localAdded) addedCharts.add(c);
+            break;
+          }
+          const newNeeded = next.filter(c => !need.includes(c));
+          if (newNeeded.length === 0) {
+            sendTrace('Requested charts already present; finalizing');
+            ctx = localCtx;
+            break;
+          }
+          localRequested = newNeeded;
+          sendTrace(`LLM requested charts: ${newNeeded.map(c => c.toUpperCase()).join(', ')}`);
+          if (i === maxIterations - 1) sendTrace('Max iterations reached; finalizing');
         }
+
+        const refinement = addedCharts.size ? `Refined with additional charts: ${Array.from(addedCharts).map(c => c.toUpperCase()).join(', ')}.` : '';
+        const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
+        const builtFinal = buildContext(ctx || {});
+        const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
+        const streamPrompt = `${builtFinal.text ? builtFinal.text + '\n\n' : ''}${constraintsFinal ? constraintsFinal + '\n' : ''}Question: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
+        const sr = await callOpenAI(streamPrompt, true);
+        if (!sr.ok || !sr.body) throw new Error('openai_failed');
+        const reader = sr.body.getReader();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\n/);
+          buffer = lines.pop() || '';
+          for (const lineRaw of lines) {
+            const line = lineRaw.trim();
+            if (!line.startsWith('data:')) continue;
+            const data = line.replace(/^data:\s*/, '');
+            if (data === '[DONE]') {
+              send('done', { used_charts: finalUsed, trace, refinement });
+              controller.close();
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed?.choices?.[0]?.delta?.content;
+              if (delta) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`));
+              }
+            } catch {}
+          }
+        }
+        send('done', { used_charts: finalUsed, trace, refinement });
+        controller.close();
+      } catch {
+        send('trace', { text: 'Streaming failed; returning fallback response.' });
+        send('done', { used_charts: usedCharts, trace, refinement: '' });
+        controller.close();
       }
-      const donePayload = JSON.stringify({ used_charts: finalUsed, trace, refinement });
-      controller.enqueue(encoder.encode(`event: done\ndata: ${donePayload}\n\n`));
-      controller.close();
     }
   });
   return new Response(streamBody, {

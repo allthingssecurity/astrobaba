@@ -180,7 +180,8 @@ export const chatWithBackendStream = async (
   context: any,
   maxIterations: number,
   onDelta: (chunk: string) => void,
-  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void
+  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void,
+  onTrace?: (message: string) => void
 ): Promise<void> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
@@ -206,7 +207,12 @@ export const chatWithBackendStream = async (
         if (line.startsWith('data:')) data += line.replace('data:', '').trim();
       }
       if (!data) continue;
-      if (event === 'done') {
+      if (event === 'trace') {
+        try {
+          const payload = JSON.parse(data);
+          if (payload?.text && onTrace) onTrace(payload.text as string);
+        } catch {}
+      } else if (event === 'done') {
         try {
           const payload = JSON.parse(data);
           onDone(payload);

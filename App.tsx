@@ -222,6 +222,10 @@ const App: React.FC = () => {
             return next;
           });
         }
+        ,
+        (msg) => {
+          setAnalysisTrace((prev) => [...prev, msg]);
+        }
       );
     } catch (e) {
       // Fallback to non-stream if SSE fails

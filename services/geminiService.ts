@@ -26,8 +26,9 @@ export const chatWithAstrologerStream = async (
   computeBundle: ComputeBundle | any,
   maxIterations: number,
   onDelta: (chunk: string) => void,
-  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void
+  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void,
+  onTrace?: (message: string) => void
 ): Promise<void> => {
   const context = computeBundle?.compute || undefined;
-  return chatWithBackendStream(sessionId, message, context, maxIterations, onDelta, onDone);
+  return chatWithBackendStream(sessionId, message, context, maxIterations, onDelta, onDone, onTrace);
 };
