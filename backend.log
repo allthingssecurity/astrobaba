@@ -478,3 +478,5 @@ INFO:     Finished server process [65107]
 INFO:     Started server process [84292]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+INFO:     127.0.0.1:64099 - "GET /api/api/geo/resolve?q=New%20Delhi%2C%20India HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64211 - "GET /api/geo/resolve HTTP/1.1" 422 Unprocessable Entity

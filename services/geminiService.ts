@@ -14,7 +14,7 @@ export const chatWithAstrologer = async (
   sessionId: string,
   message: string,
   computeBundle?: ComputeBundle | any
-): Promise<string> => {
+): Promise<{ reply: string; used_charts?: string[] }> => {
   const context = computeBundle?.compute || undefined;
   return chatWithBackend(sessionId, message, context);
 };

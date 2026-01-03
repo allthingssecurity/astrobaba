@@ -34,3 +34,14 @@
 3:49:32 pm [vite] vite.config.ts changed, restarting server...
 3:49:32 pm [vite] server restarted.
 5:03:42 pm [vite] (client) page reload index.html
+6:40:45 pm [vite] (client) page reload .gh-pages-deploy/404.html
+6:40:45 pm [vite] (client) page reload .gh-pages-deploy/index.html
+6:43:27 pm [vite] (client) page reload .gh-pages-deploy/index.html
+6:43:27 pm [vite] (client) page reload .gh-pages-deploy/404.html
+6:49:24 pm [vite] (client) page reload .gh-pages-deploy/index.html
+6:49:24 pm [vite] (client) page reload .gh-pages-deploy/404.html
+8:08:15 am [vite] (client) hmr update /App.tsx, /components/ChartVisual.tsx
+8:08:22 am [vite] (client) hmr update /App.tsx
+8:08:28 am [vite] (client) hmr update /App.tsx
+8:08:57 am [vite] (client) hmr update /App.tsx
+8:09:11 am [vite] (client) hmr update /App.tsx

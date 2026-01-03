@@ -180,6 +180,37 @@ async function prokeralaGet(env: Env, path: string, params: Record<string, strin
   return fetch(u.toString(), { headers });
 }
 
+async function handleChart(req: Request, env: Env): Promise<Response> {
+  const body = await req.json() as any;
+  const compute = body?.compute || null;
+  const chartType = body?.chart_type || 'lagna';
+  const chartStyle = body?.chart_style || 'south-indian';
+  const birth = compute?.meta?.birth || body?.birth;
+  const ayan = compute?.meta?.ayanamsa ?? body?.ayanamsa ?? 1;
+  const la = compute?.meta?.language ?? body?.la ?? 'en';
+  if (!birth?.latitude || !birth?.longitude || !birth?.timezone || !birth?.date || !birth?.time) {
+    return err('birth_meta_missing', 400);
+  }
+  const coords = `${birth.latitude},${birth.longitude}`;
+  const dtiso = `${birth.date}T${birth.time}${birth.timezone}`;
+  const token = await getToken(env);
+  const r = await prokeralaGet(env, '/astrology/chart', {
+    coordinates: coords,
+    datetime: dtiso,
+    ayanamsa: String(ayan),
+    chart_type: chartType,
+    chart_style: chartStyle,
+    format: 'svg',
+    la,
+  }, token, 'image/svg+xml');
+  if (!r.ok) return err('chart_failed', 502);
+  const svg = await r.text();
+  return new Response(svg, {
+    status: 200,
+    headers: { 'content-type': 'image/svg+xml', 'access-control-allow-origin': '*' },
+  });
+}
+
 function isoDatetime(b: BirthInput): string {
   const t = b.time.includes(':') && b.time.split(':').length === 3 ? b.time : `${b.time}:00`;
   if (!b.timezone) throw new Error('timezone missing');
@@ -429,7 +460,36 @@ function buildFacts(compute: any) {
 }
 
 async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
-  const { compute } = await req.json() as any;
+  let { compute } = await req.json() as any;
+  // Ensure key vargas are present; enrich if missing
+  try {
+    const birth = compute?.meta?.birth;
+    const ayan = compute?.meta?.ayanamsa ?? 1;
+    const la = compute?.meta?.language ?? 'en';
+    if (birth?.latitude != null && birth?.longitude != null && birth?.timezone) {
+      const coords = `${birth.latitude},${birth.longitude}`;
+      const dtiso = `${birth.date}T${birth.time}${birth.timezone}`;
+      const token = await getToken(env);
+      const need: string[] = [];
+      const have = compute?.divisional || {};
+      for (const ct of ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa']) {
+        const ok = have?.[ct]?.data?.divisional_positions?.length;
+        if (!ok) need.push(ct);
+      }
+      for (const ct of need) {
+        try {
+          const r = await prokeralaGet(env, '/astrology/divisional-planet-position', {
+            coordinates: coords, datetime: dtiso, chart_type: ct, ayanamsa: String(ayan), la
+          }, token);
+          if (r.ok) {
+            const js = await r.json();
+            compute.divisional = compute.divisional || {};
+            compute.divisional[ct] = js;
+          }
+        } catch {}
+      }
+    }
+  } catch {}
   const facts = buildFacts(compute);
   const md = facts?.dasha?.mahadasha?.name; const mdEnd = facts?.dasha?.mahadasha?.end;
   const ad = facts?.dasha?.antardasha?.name; const adEnd = facts?.dasha?.antardasha?.end;
@@ -440,19 +500,28 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     const r = await fetch(bookUrl);
     if (r.ok) {
       const t = await r.text();
-      // Limit to avoid token overflow
-      refExcerpt = t.slice(0, 40000);
+      // Limit to avoid token overflow (tight, focused excerpt)
+      refExcerpt = t.slice(0, 12000);
     }
   } catch {}
-  const sys = `You are a precise Vedic astrologer (BPHS). Use ONLY the provided JSON facts. Do NOT invent planets, signs, houses, yogas, degrees, or timelines. If a detail is not present, state "not in data" briefly.
-Ground rules:
+  const sys = `You are a precise Vedic astrologer (BPHS) writing a professional, client‑ready report.
+Rules:
+- Use ONLY the provided JSON facts; never invent planets, signs, houses, aspects, yogas, degrees, or timelines. If a detail is missing, write "not in data".
 - Never change lagna, timezone, ayanamsa, or Vimshottari periods.
-- Do not claim yogas unless explicitly present in facts (yoga list is not provided: avoid yogas).
-- Avoid aspects unless explicitly listed (none provided).
-- Be friendly but concise. Keep it readable for a layperson.
-Output: Markdown with sections: Summary, House-by-House (1..12), Career (D10, tie to MD/AD), Relationships (D9), Assets (D4), Children (D7), Timing Now (lock MD/AD).`;
+- Do not assert yogas or aspects unless explicitly present (none provided).
+Tone & Format:
+- Executive and clear, minimal jargon, layperson‑friendly.
+- Use crisp sections with headings and short bullets.
+- Each house: 3 bullets → Key signal (from sign/occupants), Practical meaning, One action.
+- Start with a brief Actionable Summary (3–5 bullets) tied to MD/AD.
+Citations policy (BV Raman reference):
+- First, extract 5–8 "Best Practices" from the reference excerpt as a numbered list BV1..BVn.
+  • Each BV item: one short quote (5–12 words) in quotes + a concise paraphrase.
+- When applying guidance later, add inline markers like [BV3] where relevant.
+- Close with a References section: list BV1..BVn with quoted phrases and: B. V. Raman, "How to Judge a Horoscope" (reference excerpt). Do NOT invent page numbers.
+- Never cite if a BV item was not actually used.`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nReference excerpt (extract 10-15 best practices/frameworks first, then apply them):\n\n${refExcerpt}\n\nTask: Write a grounded reading. For each house: 1) What the house generally covers, 2) What the sign + occupants imply in plain language, 3) One practical tip. Tie Career to D10, Relationships to D9, Assets to D4, Children to D7. Do not overreach. Mention "not in data" where necessary.`;
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nReference excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8) and at least one [BVx] marker when a best practice is applied.\n\n### Career (D10)\n- Use D10 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape: \n\n```json\n{ "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }\n```\n\nDo not include any extra prose after the JSON block. Keep bullets short; do not overreach beyond Facts JSON.`;
 
   if (!env.OPENAI_API_KEY) {
     return json({ analysis: `LLM not available. Here are facts:\n\n${JSON.stringify(facts, null, 2)}` });
@@ -462,7 +531,7 @@ Output: Markdown with sections: Summary, House-by-House (1..12), Career (D10, ti
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      temperature: 0.2,
+      temperature: 0.15,
       messages: [
         { role: 'system', content: sys },
         { role: 'user', content: user }
@@ -471,13 +540,63 @@ Output: Markdown with sections: Summary, House-by-House (1..12), Career (D10, ti
   });
   if (!r.ok) return err('openai_failed', 502);
   const data = await r.json() as any;
-  const text = data?.choices?.[0]?.message?.content || 'No answer';
-  return json({ analysis: text });
+  let text = data?.choices?.[0]?.message?.content || '';
+  let rationale: any[] = [];
+  try {
+    const start = text.indexOf('```json');
+    if (start >= 0) {
+      const end = text.indexOf('```', start + 7);
+      const jsonBlock = text.substring(start + 7, end).trim();
+      const parsed = JSON.parse(jsonBlock);
+      if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
+      // remove code block from analysis markdown
+      text = (text.substring(0, start) + text.substring(end + 3)).trim();
+    }
+  } catch {}
+  if (!text) text = 'No answer';
+  return json({ analysis: text, rationale });
+}
+
+// Intent detection for on-demand varga enrichment in chat
+function detectIntentCharts(message: string): string[] {
+  const m = message.toLowerCase();
+  const need: Set<string> = new Set();
+  if (/career|job|promotion|work|boss|role|profession/.test(m)) need.add('dasamsa'); // D10
+  if (/marriage|spouse|partner|relationship|wife|husband/.test(m)) need.add('navamsa'); // D9
+  if (/property|house|real\s?estate|asset|land|home|vehicle/.test(m)) need.add('chaturthamsa'); // D4
+  if (/child|children|progeny|son|daughter|fertility/.test(m)) need.add('saptamsa'); // D7
+  // Always ensure D1
+  need.add('lagna');
+  return Array.from(need);
+}
+
+async function ensureDivisionalCharts(env: Env, compute: any, types: string[]): Promise<any> {
+  try {
+    const birth = compute?.meta?.birth;
+    const ayan = compute?.meta?.ayanamsa ?? 1;
+    const la = compute?.meta?.language ?? 'en';
+    if (!(birth?.latitude != null && birth?.longitude != null && birth?.timezone)) return compute;
+    const coords = `${birth.latitude},${birth.longitude}`;
+    const dtiso = `${birth.date}T${birth.time}${birth.timezone}`;
+    const token = await getToken(env);
+    compute.divisional = compute.divisional || {};
+    for (const ct of types) {
+      const ok = compute?.divisional?.[ct]?.data?.divisional_positions?.length;
+      if (ok) continue;
+      try {
+        const r = await prokeralaGet(env, '/astrology/divisional-planet-position', {
+          coordinates: coords, datetime: dtiso, chart_type: ct, ayanamsa: String(ayan), la
+        }, token);
+        if (r.ok) compute.divisional[ct] = await r.json();
+      } catch {}
+    }
+  } catch {}
+  return compute;
 }
 async function handleChat(req: Request, env: Env): Promise<Response> {
   const body = await req.json() as any;
   const message = body?.message || '';
-  const ctx = body?.context || null;
+  let ctx = body?.context || null;
   if (!message) return err('message required', 400);
 
   // Build minimal chart context
@@ -530,8 +649,19 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   const constraints = mdName ? `Lock these timings: Mahadasha=${mdName}${mdEnd?` (ends ${mdEnd})`:''}${adName?`; Antardasha=${adName}${adEnd?` (ends ${adEnd})`:''}`:''}` : '';
   const userPrompt = `${contextText ? contextText + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}`;
 
+  // Enrich context charts on-demand based on intent
+  let usedCharts: string[] = [];
+  try {
+    if (ctx) {
+      const need = detectIntentCharts(message);
+      usedCharts = need.slice();
+      const enriched = await ensureDivisionalCharts(env, ctx.compute || ctx, need);
+      ctx = enriched;
+    }
+  } catch {}
+
   if (!env.OPENAI_API_KEY) {
-    return json({ reply: `I will keep it practical and chart-grounded. ${message}` });
+    return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts });
   }
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -548,7 +678,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   if (!r.ok) return err('openai_failed', 502);
   const data = await r.json() as any;
   const text = data?.choices?.[0]?.message?.content || 'No answer';
-  return json({ reply: text });
+  return json({ reply: text, used_charts: usedCharts });
 }
 
 async function handleGeoResolve(url: URL, env: Env): Promise<Response> {
@@ -615,6 +745,7 @@ export default {
       if (url.pathname === '/api/compute' && request.method === 'POST') return handleCompute(request, env);
       if (url.pathname === '/api/analyze' && request.method === 'POST') return handleAnalyze(request);
       if (url.pathname === '/api/analyze-llm' && request.method === 'POST') return handleAnalyzeLLM(request, env);
+      if (url.pathname === '/api/chart' && request.method === 'POST') return handleChart(request, env);
       if (url.pathname === '/api/chat' && request.method === 'POST') return handleChat(request, env);
       if (url.pathname === '/api/shadbala/pdf' && request.method === 'POST') return handleShadbalaPdf(request, env);
       if (url.pathname === '/api/shadbala/json') return err('Not implemented on Worker; use PDF', 501);

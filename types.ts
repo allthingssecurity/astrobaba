@@ -74,4 +74,5 @@ export interface ComputeBundle {
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
+  usedCharts?: string[];
 }

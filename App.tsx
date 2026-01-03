@@ -29,6 +29,38 @@ const App: React.FC = () => {
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [manual, setManual] = useState<{offset?: string; lat?: string; lon?: string}>({});
+  const [showSources, setShowSources] = useState(false);
+  const [rationale, setRationale] = useState<any[]>([]);
+  const [chartStyle, setChartStyle] = useState<'south-indian' | 'north-indian'>('south-indian');
+  const [chartSvgs, setChartSvgs] = useState<Record<string, string>>({});
+
+  // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
+  const deriveRationale = (md: string): any[] => {
+    const lines = md.split(/\r?\n/);
+    let section: string = '';
+    let house: number | null = null;
+    const out: any[] = [];
+    for (let raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      // Detect section headers like ### House‑by‑House or ### Career (D10)
+      if (line.startsWith('### ')) {
+        section = line.replace(/^###\s+/, '').trim();
+        const m = section.match(/House\s*(\d{1,2})/i);
+        house = m ? parseInt(m[1], 10) : null;
+        continue;
+      }
+      // For bullets, capture Evidence and BV IDs
+      if (line.startsWith('- ')) {
+        const bullet = line.replace(/^-\s+/, '');
+        const evMatch = bullet.match(/Evidence:\s*([^\n]*)/i);
+        const ev = evMatch ? evMatch[1].split(/;\s*/).map(s=>s.trim()).filter(Boolean) : [];
+        const bvs = Array.from(new Set((bullet.match(/\[BV\d+\]/g) || []).map(s=>s.replace(/\[|\]/g,''))));
+        out.push({ section, house, bullet, chart_evidence: ev, bv_ids: bvs, reasoning: '' });
+      }
+    }
+    return out;
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setBirthDetails({ ...birthDetails, [e.target.name]: e.target.value });
@@ -119,8 +151,24 @@ const App: React.FC = () => {
       
       // Auto-generate initial analysis
       setAnalyzing(true);
-      const initialAnalysis = await analyzeHoroscope(birthDetails, bundle);
-      setChatHistory([{ role: 'model', text: initialAnalysis }]);
+      // Auto-run detailed analysis (LLM) after compute
+      try {
+        const birthMeta = bundle?.compute?.meta?.birth;
+        if (birthMeta) {
+          const enrichedResp = await fetch(`${API_BASE}/api/compute`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ birth: birthMeta, include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'], include_transits: false })
+          });
+          const enriched = enrichedResp.ok ? await enrichedResp.json() : bundle.compute;
+          const llm = await analyzeWithLLM(enriched);
+          setChatHistory([{ role: 'model', text: llm.text }]);
+          const r = (llm.rationale && llm.rationale.length > 0) ? llm.rationale : deriveRationale(llm.text);
+          setRationale(r);
+        }
+      } catch {
+        const initialAnalysis = await analyzeHoroscope(birthDetails, bundle);
+        setChatHistory([{ role: 'model', text: initialAnalysis }]);
+      }
     } catch (error) {
       console.error(error);
       alert("Failed to generate charts.");
@@ -140,12 +188,46 @@ const App: React.FC = () => {
 
     const response = await chatWithAstrologer('default-session', question, computeBundle || undefined);
     
-    setChatHistory([...newHistory, { role: 'model', text: response }]);
+    setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts }]);
     setAnalyzing(false);
+  };
+
+  const chartTypeForTab = (tab: typeof activeTab) => (
+    tab === 'd1' ? 'lagna' :
+    tab === 'd9' ? 'navamsa' :
+    tab === 'd10' ? 'dasamsa' :
+    tab === 'd4' ? 'chaturthamsa' :
+    'saptamsa'
+  );
+
+  const loadChartSvg = async (tab: typeof activeTab) => {
+    if (!computeBundle) return;
+    try {
+      const chartType = chartTypeForTab(tab);
+      const resp = await fetch(`${API_BASE}/api/chart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ compute: computeBundle.compute, chart_type: chartType, chart_style: chartStyle })
+      });
+      if (!resp.ok) throw new Error('chart svg failed');
+      const svg = await resp.text();
+      setChartSvgs((prev) => ({ ...prev, [tab]: svg }));
+    } catch {
+      // fallback to local grid chart when svg isn't available
+      setChartSvgs((prev) => ({ ...prev, [tab]: '' }));
+    }
   };
 
   const renderActiveChart = () => {
     if (!horoscope) return null;
+    const svg = chartSvgs[activeTab];
+    if (svg) {
+      return (
+        <div className="w-full overflow-auto bg-slate-900 p-2 rounded-lg border border-slate-700">
+          <div dangerouslySetInnerHTML={{ __html: svg }} />
+        </div>
+      );
+    }
     switch (activeTab) {
       case 'd1': return <SouthIndianChart data={horoscope.d1} title="Rasi (Body/Destiny)" />;
       case 'd9': return <SouthIndianChart data={horoscope.d9} title="Navamsa (Marriage)" />;
@@ -155,6 +237,23 @@ const App: React.FC = () => {
       default: return null;
     }
   };
+
+  const prettyChartName = (ct: string) => {
+    const map: Record<string, string> = {
+      lagna: 'D1',
+      navamsa: 'D9',
+      dasamsa: 'D10',
+      chaturthamsa: 'D4',
+      saptamsa: 'D7',
+    };
+    return map[ct] || ct.toUpperCase();
+  };
+
+  useEffect(() => {
+    if (computeBundle && step === 'dashboard') {
+      loadChartSvg(activeTab);
+    }
+  }, [computeBundle, activeTab, chartStyle]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
@@ -327,7 +426,7 @@ const App: React.FC = () => {
                   </div>
 
                   {/* Tabs */}
-                  <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 overflow-x-auto">
+                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700 overflow-x-auto">
                   {(['d1', 'd9', 'd10', 'd4', 'd7'] as const).map((tab) => (
                         <button
                             key={tab}
@@ -341,6 +440,25 @@ const App: React.FC = () => {
                             {tab.toUpperCase()}
                         </button>
                     ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
+                    <div className="flex items-center gap-2">
+                      <span>Chart Style</span>
+                      <select
+                        value={chartStyle}
+                        onChange={(e) => { setChartStyle(e.target.value as any); }}
+                        className="bg-slate-900 border border-slate-600 rounded px-2 py-1"
+                      >
+                        <option value="south-indian">South Indian</option>
+                        <option value="north-indian">North Indian</option>
+                      </select>
+                    </div>
+                    <button
+                      className="text-[10px] px-2 py-1 rounded border border-slate-600 hover:border-amber-500"
+                      onClick={() => loadChartSvg(activeTab)}
+                    >
+                      Refresh Chart
+                    </button>
                   </div>
 
                   {/* Chart Visual */}
@@ -447,15 +565,33 @@ const App: React.FC = () => {
                      <span className="text-xl">📜</span>
                      Vedic Report & Analysis
                    </h3>
-                   <div className="flex gap-2 items-center">
+                   <div className="flex gap-3 items-center">
                      <span className="text-[10px] bg-purple-900/40 text-purple-200 border border-purple-500/30 px-2 py-1 rounded uppercase tracking-wider">Parasara Hora Sastra</span>
+                     <div className="text-[10px] text-slate-400">
+                       Methodology: BPHS + BV Raman best practices (applied selectively)
+                     </div>
                      <button
                        onClick={async ()=>{
                          if (!computeBundle) return;
                          setLlmAnalyzing(true);
                          try {
-                           const text = await analyzeWithLLM(computeBundle.compute);
-                           setChatHistory([{ role: 'model', text }]);
+                           // Ensure we have key vargas before analysis (D10/D4/D7)
+                           const birthMeta = computeBundle?.compute?.meta?.birth;
+                           if (!birthMeta) throw new Error('Missing birth meta');
+                           const resp = await fetch(`${API_BASE}/api/compute`, {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({
+                               birth: birthMeta,
+                               include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'],
+                               include_transits: false
+                             })
+                           });
+                           const enriched = resp.ok ? await resp.json() : computeBundle.compute;
+                           const out = await analyzeWithLLM(enriched);
+                           setChatHistory([{ role: 'model', text: out.text }]);
+                           const r = (out.rationale && out.rationale.length>0) ? out.rationale : deriveRationale(out.text);
+                           setRationale(r);
                          } catch (e) {
                            alert('Could not generate detailed analysis.');
                          } finally {
@@ -465,9 +601,13 @@ const App: React.FC = () => {
                        className="text-[10px] px-2 py-1 rounded border border-slate-600 hover:border-amber-500 hover:text-amber-300 disabled:opacity-50"
                        disabled={llmAnalyzing}
                      >
-                       {llmAnalyzing ? 'Generating…' : 'Generate Detailed Analysis'}
-                     </button>
-                   </div>
+                        {llmAnalyzing ? 'Generating…' : (chatHistory.length>0 ? 'Re-run Detailed Analysis' : 'Generate Detailed Analysis')}
+                      </button>
+                     <label className="flex items-center gap-1 text-[10px] text-slate-400 ml-2 select-none">
+                       <input type="checkbox" checked={showSources} onChange={(e)=>setShowSources(e.target.checked)} />
+                       Show sources
+                     </label>
+                  </div>
                 </div>
                 
                 {/* Chat Area */}
@@ -489,6 +629,29 @@ const App: React.FC = () => {
                         {msg.role === 'model' ? (
                           <div className="prose prose-invert prose-sm max-w-none prose-headings:text-amber-200 prose-headings:font-serif prose-strong:text-amber-100 prose-a:text-purple-300">
                             <ReactMarkdown>{msg.text}</ReactMarkdown>
+                            {showSources && rationale.length > 0 && (
+                              <div className="mt-6 border-t border-slate-700 pt-3">
+                                <h4 className="text-xs uppercase tracking-widest text-slate-400 mb-2">Sources</h4>
+                                <ul className="space-y-1 list-disc pl-5">
+                                  {rationale.slice(0,30).map((r:any,i:number)=> (
+                                    <li key={i} className="text-[11px] text-slate-400">
+                                      <span className="text-slate-300">{r.section}{r.house?` H${r.house}`:''}:</span> {r.bullet}
+                                      {r.chart_evidence && r.chart_evidence.length>0 && (
+                                        <span className="block text-[10px] text-slate-500">Evidence: {r.chart_evidence.join('; ')}</span>
+                                      )}
+                                      {r.bv_ids && r.bv_ids.length>0 && (
+                                        <span className="block text-[10px] text-slate-500">Applied: {r.bv_ids.join(', ')}</span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {msg.usedCharts && msg.usedCharts.length > 0 && (
+                              <div className="mt-4 text-[10px] text-slate-400">
+                                Context charts used: {msg.usedCharts.map(prettyChartName).join(', ')}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm font-medium">{msg.text}</p>

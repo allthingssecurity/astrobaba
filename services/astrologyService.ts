@@ -142,7 +142,7 @@ export const analyzeWithBackend = async (compute: any, question?: string): Promi
   return data.analysis as string;
 };
 
-export const analyzeWithLLM = async (compute: any): Promise<string> => {
+export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rationale: any[] } > => {
   const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -150,10 +150,10 @@ export const analyzeWithLLM = async (compute: any): Promise<string> => {
   });
   if (!resp.ok) throw new Error('Analyze LLM failed');
   const data = await resp.json();
-  return data.analysis as string;
+  return { text: data.analysis as string, rationale: (data.rationale || []) as any[] };
 };
 
-export const chatWithBackend = async (sessionId: string, message: string, context?: any): Promise<string> => {
+export const chatWithBackend = async (sessionId: string, message: string, context?: any): Promise<{ reply: string; used_charts?: string[] }> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -161,7 +161,7 @@ export const chatWithBackend = async (sessionId: string, message: string, contex
   });
   if (!resp.ok) throw new Error('Chat failed');
   const data = await resp.json();
-  return data.reply as string;
+  return { reply: data.reply as string, used_charts: data.used_charts as string[] | undefined };
 };
 
 // --- Shadbala helpers ---
