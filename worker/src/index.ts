@@ -530,6 +530,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   let refExcerpt = '';
   let paraExcerpt = '';
   let iyerExcerpt = '';
+  let horaryExcerpt = '';
   try {
     const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
     const r = await fetch(bookUrl);
@@ -558,6 +559,15 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
       trace.push('Loaded Seshadri Iyer excerpt');
     }
   } catch {}
+  try {
+    const bookUrl4 = 'https://allthingssecurity.github.io/astrobaba/horary_book.txt';
+    const r4 = await fetch(bookUrl4);
+    if (r4.ok) {
+      const t4 = await r4.text();
+      horaryExcerpt = t4.slice(0, 12000);
+      trace.push('Loaded Horary excerpt');
+    }
+  } catch {}
   const sys = `You are a precise Vedic astrologer (BPHS) writing a professional, client‑ready report.
 Rules:
 - Use ONLY the provided JSON facts; never invent planets, signs, houses, aspects, yogas, degrees, or timelines. If a detail is missing, write "not in data".
@@ -572,20 +582,21 @@ Tone & Format:
 Life‑stage grounding:
 - Use the birth date to infer present age. If a topic (e.g., marriage, children, career) is typically already realized for the age, phrase it in past/present tense (e.g., "likely already married" / "marriage likely occurred in...") rather than future‑prospect language.
 - If age suggests early life, keep future‑oriented phrasing. Avoid generic "prospects" language when it contradicts the age.
-Citation sources (BV Raman + Parasara + Seshadri Iyer):
+Citation sources (BV Raman + Parasara + Seshadri Iyer + Horary):
 - Extract 5–8 "Best Practices (BV Raman)" with a short quote + paraphrase (no BV codes in the report text).
 - Extract 4–6 "Core Principles (Parasara)" with a short quote + paraphrase (no P codes in the report text).
 - Extract 4–6 "Techniques (Seshadri Iyer)" with a short quote + paraphrase.
+- Extract 4–6 "Procedures (Horary)" with a short quote + paraphrase.
 - Use citations implicitly; do NOT include any code markers in the visible report text.
-- Close with a References section listing BV Raman, Parasara, and Seshadri Iyer quotes with attribution. Do NOT invent page numbers.
+- Close with a References section listing BV Raman, Parasara, Seshadri Iyer, and Horary quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
   const langNote = lang === 'hi' ? 'IMPORTANT: Respond only in Hindi.' : 'Respond in English.';
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
   const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\n${langNote}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases):\n\n${paraExcerpt}\n\nSeshadri Iyer excerpt (extract 4–6 techniques with quoted phrases):\n\n${iyerExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
-- Every bullet must start with "Plain:" followed by a single, layperson sentence.
+- Every bullet must start with a single, layperson sentence (no labels).
 - Every bullet must include an "Evidence:" line citing at least two placements (e.g., "Evidence: D1 Mars in H8 Scorpio; D10 Saturn in H10 Capricorn").
 - Do NOT use technical labels like Signal/Reason/Outcome in the visible text.
-- If you cannot cite two placements, write "Plain: not in data" and still include Evidence: not in data.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include Signal/Reason/Outcome.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### Techniques (Seshadri Iyer)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Signal/Reason/Outcome. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include Plain + Evidence with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include Plain + Evidence with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include Plain + Evidence with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include Plain + Evidence with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include Plain + Evidence and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n- Seshadri Iyer quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+- If you cannot cite two placements, write a simple sentence "not in data" and still include Evidence: not in data.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include a layperson sentence followed by an Evidence line.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### Techniques (Seshadri Iyer)\n- 4–6 items with short quotes + paraphrase.\n\n### Horary Procedures (Practical Horary Astrology)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Plain + Evidence. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include a layperson sentence + Evidence with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include a layperson sentence + Evidence with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include a layperson sentence + Evidence with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include a layperson sentence + Evidence with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include a layperson sentence + Evidence and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n- Seshadri Iyer quotes + attribution line.\n- Practical Horary Astrology quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -683,6 +694,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       if (refExcerpt) sendTrace('BV Raman excerpt loaded');
       if (paraExcerpt) sendTrace('Parasara excerpt loaded');
       if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
+        if (horaryExcerpt) sendTrace('Horary excerpt loaded');
       sendTrace('Draft pass (BV Raman + Parasara)');
       sendTrace('Verification pass (Parasara + BV + general heuristics)');
       let score = 0;
@@ -939,6 +951,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   let refExcerpt = '';
   let paraExcerpt = '';
   let iyerExcerpt = '';
+  let horaryExcerpt = '';
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/astro_book.txt');
     if (r.ok) refExcerpt = (await r.text()).slice(0, 6000);
@@ -950,6 +963,10 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/iyer_book.txt');
     if (r.ok) iyerExcerpt = (await r.text()).slice(0, 6000);
+  } catch {}
+  try {
+    const r = await fetch('https://allthingssecurity.github.io/astrobaba/horary_book.txt');
+    if (r.ok) horaryExcerpt = (await r.text()).slice(0, 6000);
   } catch {}
 
   const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened. If the question is ambiguous or missing timeframe, ask 1–2 clarifying questions before answering.';
@@ -1051,6 +1068,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         if (refExcerpt) sendTrace('BV Raman excerpt loaded');
         if (paraExcerpt) sendTrace('Parasara excerpt loaded');
         if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
+        if (horaryExcerpt) sendTrace('Horary excerpt loaded');
         sendTrace('Phase 1: Primary reading (BV Raman)');
         // Re-run the loop to emit live trace
         let localCtx = ctx;
@@ -1111,13 +1129,16 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         const bvPrompt = `${streamPrompt}
 ${langNote}
-Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Plain + Evidence per bullet.`;
         const paraPrompt = `${streamPrompt}
 ${langNote}
-Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Plain + Evidence per bullet.`;
         const iyerPrompt = `${streamPrompt}
 ${langNote}
-Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
+Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Plain + Evidence per bullet.`;
+        const horaryPrompt = `${streamPrompt}
+${langNote}
+Framework: Practical Horary Astrology (question-first procedures). Use only chart context. Format with Plain + Evidence per bullet.`;
 
         sendTrace('Draft pass: BV Raman');
         const bvResp = await callOpenAI(bvPrompt, false);
@@ -1136,6 +1157,12 @@ Framework: Seshadri Iyer (techniques of prediction). Use only chart context. For
         if (!iyerResp.ok) throw new Error('openai_failed');
         const iyerData = await iyerResp.json() as any;
         const iyerText = iyerData?.choices?.[0]?.message?.content || 'No answer';
+
+        sendTrace('Draft pass: Horary');
+        const horaryResp = await callOpenAI(horaryPrompt, false);
+        if (!horaryResp.ok) throw new Error('openai_failed');
+        const horaryData = await horaryResp.json() as any;
+        const horaryText = horaryData?.choices?.[0]?.message?.content || 'No answer';
 
         sendTrace('Cross-verification across 3 drafts');
         const comparePrompt = `Context:
@@ -1157,7 +1184,7 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
         let refinements: string[] = [];
         let consensus: string[] = [];
         let divergences: string[] = [];
-        let scores = { bv: 0, parasara: 0, iyer: 0 };
+        let scores = { bv: 0, parasara: 0, iyer: 0, horary: 0 };
         if (compareResp.ok) {
           const compareData = await compareResp.json() as any;
           const compareText = compareData?.choices?.[0]?.message?.content || '{}';
@@ -1178,16 +1205,17 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
                 scores = {
                   bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : scores.bv,
                   parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : scores.parasara,
-                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer
+                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer,
+                  horary: typeof parsed.scores.horary === 'number' ? parsed.scores.horary : scores.horary
                 };
               }
             }
           } catch {
-            scores = { bv: 0.5, parasara: 0.5, iyer: 0.5 };
+            scores = { bv: 0.5, parasara: 0.5, iyer: 0.5, horary: 0.5 };
             sendTrace('Comparison parse failed; using neutral scores');
           }
         }
-        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0) {
+        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0 && scores.horary === 0) {
           sendTrace('Scores missing; retrying comparison');
           compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
           if (compareResp.ok) {
@@ -1202,20 +1230,20 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
                   iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : 0.6
                 };
               } else {
-                scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+                scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6 };
               }
             } catch {
-              scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+              scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6 };
             }
           } else {
-            scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+            scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6 };
           }
         }
-        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0) {
-          scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0 && scores.horary === 0) {
+          scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6 };
           sendTrace('Scores missing; using neutral defaults');
         }
-        sendTrace(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}`);
+        sendTrace(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}, Horary: ${scores.horary.toFixed(2)}`);
         if (divergences.length) sendTrace(`Divergences flagged: ${divergences.length}`);
         if (consensus.length) sendTrace(`Consensus points: ${consensus.length}`);
         sendTrace('Applying refinements');

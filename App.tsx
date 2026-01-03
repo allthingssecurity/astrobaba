@@ -331,7 +331,7 @@ const App: React.FC = () => {
   };
 
   const stripEvidenceLines = (md: string): string => {
-    return md.replace(/^\s*Evidence:.*$/gm, '');
+    return md.replace(/^\s*Evidence:.*$/gm, '').replace(/^Plain:\s*/gm, '');
   };
 
   const toPlainText = (md: string): string => {
