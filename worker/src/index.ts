@@ -472,7 +472,8 @@ function buildFacts(compute: any) {
 }
 
 async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
-  let { compute } = await req.json() as any;
+  const body = await req.json() as any;
+  let { compute } = body || {};
   // Ensure key vargas are present; enrich if missing
   try {
     const birth = compute?.meta?.birth;
