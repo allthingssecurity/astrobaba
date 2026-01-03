@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [rationale, setRationale] = useState<any[]>([]);
   const [chartStyle, setChartStyle] = useState<'south-indian' | 'north-indian'>('south-indian');
   const [chartSvgs, setChartSvgs] = useState<Record<string, string>>({});
+  const [pendingCharts, setPendingCharts] = useState<string[]>([]);
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
   const deriveRationale = (md: string): any[] => {
@@ -161,7 +162,7 @@ const App: React.FC = () => {
           });
           const enriched = enrichedResp.ok ? await enrichedResp.json() : bundle.compute;
           const llm = await analyzeWithLLM(enriched);
-          setChatHistory([{ role: 'model', text: llm.text }]);
+          setChatHistory([{ role: 'model', text: llm.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
           const r = (llm.rationale && llm.rationale.length > 0) ? llm.rationale : deriveRationale(llm.text);
           setRationale(r);
         }
@@ -184,12 +185,16 @@ const App: React.FC = () => {
     const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', text: question }];
     setChatHistory(newHistory);
     setQuestion("");
+    setPendingCharts(inferContextCharts(question));
     setAnalyzing(true);
 
-    const response = await chatWithAstrologer('default-session', question, computeBundle || undefined);
-    
-    setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts }]);
-    setAnalyzing(false);
+    try {
+      const response = await chatWithAstrologer('default-session', question, computeBundle || undefined);
+      setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts }]);
+    } finally {
+      setPendingCharts([]);
+      setAnalyzing(false);
+    }
   };
 
   const chartTypeForTab = (tab: typeof activeTab) => (
@@ -247,6 +252,16 @@ const App: React.FC = () => {
       saptamsa: 'D7',
     };
     return map[ct] || ct.toUpperCase();
+  };
+
+  const inferContextCharts = (text: string): string[] => {
+    const q = text.toLowerCase();
+    const charts = new Set<string>(['lagna']);
+    if (/(career|job|promotion|business|profession|work|income)/.test(q)) charts.add('dasamsa');
+    if (/(relationship|marriage|partner|spouse|love|divorce)/.test(q)) charts.add('navamsa');
+    if (/(assets|property|house|home|vehicle|real estate|land)/.test(q)) charts.add('chaturthamsa');
+    if (/(children|child|fertility|progeny|pregnancy)/.test(q)) charts.add('saptamsa');
+    return Array.from(charts);
   };
 
   useEffect(() => {
@@ -446,7 +461,7 @@ const App: React.FC = () => {
                       <span>Chart Style</span>
                       <select
                         value={chartStyle}
-                        onChange={(e) => { setChartStyle(e.target.value as any); }}
+                        onChange={(e) => { setChartStyle(e.target.value as any); setChartSvgs({}); }}
                         className="bg-slate-900 border border-slate-600 rounded px-2 py-1"
                       >
                         <option value="south-indian">South Indian</option>
@@ -464,6 +479,11 @@ const App: React.FC = () => {
                   {/* Chart Visual */}
                   <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
                     {renderActiveChart()}
+                    {chartStyle === 'north-indian' && !chartSvgs[activeTab] && (
+                      <div className="mt-2 text-[10px] text-slate-400 text-center">
+                        North Indian SVG unavailable — showing fallback grid.
+                      </div>
+                    )}
                     {(['d10','d4','d7'] as const).includes(activeTab) && (
                       <div className="mt-3 text-center">
                         <button
@@ -589,7 +609,7 @@ const App: React.FC = () => {
                            });
                            const enriched = resp.ok ? await resp.json() : computeBundle.compute;
                            const out = await analyzeWithLLM(enriched);
-                           setChatHistory([{ role: 'model', text: out.text }]);
+                           setChatHistory([{ role: 'model', text: out.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
                            const r = (out.rationale && out.rationale.length>0) ? out.rationale : deriveRationale(out.text);
                            setRationale(r);
                          } catch (e) {
@@ -668,6 +688,13 @@ const App: React.FC = () => {
                           <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-150"></span>
                         </div>
                      </div>
+                  )}
+                  {analyzing && pendingCharts.length > 0 && (
+                    <div className="flex justify-start">
+                      <div className="text-[10px] text-slate-400 bg-slate-800/50 border border-slate-700 rounded-xl px-3 py-2">
+                        Analyzing with charts: {pendingCharts.map(prettyChartName).join(', ')}
+                      </div>
+                    </div>
                   )}
                 </div>
 
