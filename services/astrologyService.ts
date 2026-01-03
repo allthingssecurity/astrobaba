@@ -43,7 +43,25 @@ export const mapDivisionalToChart = (chartName: string, data: any): ChartData =>
   return { chartName, positions };
 };
 
-const extractCurrentDasha = (kundli: any) => {
+const extractCurrentDasha = (kundli: any, currentDasha?: any) => {
+  if (currentDasha?.mahadasha) {
+    return {
+      mahadasha: {
+        lord: (currentDasha.mahadasha.name || 'Unknown') as any,
+        startDate: currentDasha.mahadasha.start?.slice(0, 10) || '-',
+        endDate: currentDasha.mahadasha.end?.slice(0, 10) || '-',
+        durationYears: 0
+      },
+      antardasha: {
+        lord: (currentDasha.antardasha?.name || 'Unknown') as any,
+        startDate: currentDasha.antardasha?.start?.slice(0, 10) || '-',
+        endDate: currentDasha.antardasha?.end?.slice(0, 10) || '-',
+        durationYears: 0
+      },
+      pratyantardasha: '-',
+      balanceAtBirth: (currentDasha.balance || '-') as string
+    };
+  }
   const data = kundli?.data || {};
   // In kundli advanced, dasha fields are commonly at data level
   const dasha = data?.vimshottari_dasha || data;
@@ -125,7 +143,7 @@ export const calculateCharts = async (
     d7: mapDivisionalToChart('D7 Saptamsa', d7),
     d4: mapDivisionalToChart('D4 Chaturthamsha', d4),
     shadbala: [], // not available via JSON; can be fetched via PDF later
-    currentDasha: extractCurrentDasha(kundli),
+    currentDasha: extractCurrentDasha(kundli, compute.current_dasha),
     nakshatra: kundli?.data?.nakshatra_details?.nakshatra?.name || ''
   };
 

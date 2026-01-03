@@ -263,6 +263,23 @@ async function handleCompute(req: Request, env: Env): Promise<Response> {
   }
   if (!kundliResp.ok) return err('kundli_failed', 502);
   const kundli = await kundliResp.json();
+  // Current dasha snapshot (computed once server-side)
+  let current_dasha: any = null;
+  try {
+    const kdata = kundli?.data || {};
+    const dasha = kdata?.vimshottari_dasha || kdata;
+    const birthIso = (b?.date && b?.time && b?.timezone) ? `${b.date}T${b.time.includes(':') && b.time.split(':').length === 3 ? b.time : `${b.time}:00`}${b.timezone}` : undefined;
+    if (Array.isArray(dasha?.dasha_periods)) {
+      const md = currentPeriod(dasha.dasha_periods, birthIso);
+      let ad: any = null;
+      if (md && Array.isArray(md.antardasha)) ad = currentPeriod(md.antardasha, birthIso);
+      current_dasha = {
+        mahadasha: md ? { name: md.name, start: md.start, end: md.end } : null,
+        antardasha: ad ? { name: ad.name, start: ad.start, end: ad.end } : null,
+        balance: dasha?.dasha_balance?.description || null,
+      };
+    }
+  } catch {}
   // Divisional
   const divisional: Record<string, any> = {};
   const include = body.include_divisional || ['lagna','navamsa'];
@@ -289,6 +306,7 @@ async function handleCompute(req: Request, env: Env): Promise<Response> {
     kundli,
     divisional,
     transits,
+    current_dasha,
     meta: {
       provider: 'prokerala',
       advanced,
