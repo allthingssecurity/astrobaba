@@ -767,6 +767,31 @@ function detectIntentCharts(message: string): string[] {
   return Array.from(need);
 }
 
+function needsTransits(message: string): boolean {
+  const m = message.toLowerCase();
+  return /auspicious|muhurta|shubh|good day|favorable day|auspicion|timing|today|this week|this month/.test(m);
+}
+
+async function ensureTransits(env: Env, compute: any): Promise<any> {
+  try {
+    if (compute?.transits?.data) return compute;
+    const birth = compute?.meta?.birth;
+    const ayan = compute?.meta?.ayanamsa ?? 1;
+    if (!(birth?.latitude != null && birth?.longitude != null)) return compute;
+    const coords = `${birth.latitude},${birth.longitude}`;
+    const token = await getToken(env);
+    const r = await prokeralaGet(env, '/astrology/transit-planet-position', {
+      current_coordinates: coords,
+      transit_datetime: new Date().toISOString(),
+      ayanamsa: String(ayan)
+    }, token);
+    if (r.ok) {
+      compute.transits = await r.json();
+    }
+  } catch {}
+  return compute;
+}
+
 function parseNextCharts(text: string): string[] {
   const match = text.match(/^\s*NEXT_CHARTS:\s*(.+)\s*$/im);
   if (!match) return [];
@@ -830,6 +855,14 @@ function buildContext(ctx: any): { text: string; mdName?: string; mdEnd?: string
     if (picks.length) parts.push('D1 placements: ' + picks.join(', '));
     const charts = availableCharts(ctx);
     if (charts.length) parts.push(`Charts available: ${charts.map(c => c.toUpperCase()).join(', ')}`);
+    // Transits summary (if available)
+    try {
+      const tpos = ctx?.transits?.data?.transit_positions || ctx?.transits?.transit_positions;
+      if (Array.isArray(tpos)) {
+        const tlist = tpos.slice(0, 12).map((p: any) => `${p?.planet?.name || p?.planet} in ${p?.rasi?.name || p?.sign || ''}`).filter(Boolean);
+        if (tlist.length) parts.push(`Transits: ${tlist.join(', ')}`);
+      }
+    } catch {}
     // Dasha grounding
     const dasha = kundli?.vimshottari_dasha || kundli;
     if (Array.isArray(dasha?.dasha_periods)) {
@@ -911,7 +944,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts, trace });
   }
 
-  const callOpenAI = async (userPrompt: string, streamMode: boolean) => {
+  const callOpenAI = async (userPrompt: string, streamMode: boolean, responseFormat?: any) => {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
@@ -919,6 +952,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         model: 'gpt-4o-mini',
         temperature: 0.2,
         stream: streamMode,
+        ...(responseFormat ? { response_format: responseFormat } : {}),
         messages: [
           { role: 'system', content: sys },
           { role: 'user', content: userPrompt }
@@ -1001,13 +1035,17 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         let localRequested: string[] = [];
         let localAdded: Set<string> = new Set();
         for (let i = 0; i < maxIterations; i++) {
-          const need = Array.from(new Set([...localUsed, ...localRequested]));
-          sendTrace(`Iteration ${i + 1}: intent charts ${need.map(c => c.toUpperCase()).join(', ') || 'none'}`);
-          sendTrace('Checking chart availability');
-          const before = availableCharts(localCtx);
-          if (localCtx) {
-            try { localCtx = await ensureDivisionalCharts(env, (localCtx as any).compute || localCtx, need); } catch {}
+        const need = Array.from(new Set([...localUsed, ...localRequested]));
+        sendTrace(`Iteration ${i + 1}: intent charts ${need.map(c => c.toUpperCase()).join(', ') || 'none'}`);
+        sendTrace('Checking chart availability');
+        const before = availableCharts(localCtx);
+        if (localCtx) {
+          try { localCtx = await ensureDivisionalCharts(env, (localCtx as any).compute || localCtx, need); } catch {}
+          if (needsTransits(message)) {
+            sendTrace('Checking transits (muhurta/timing)');
+            try { localCtx = await ensureTransits(env, (localCtx as any).compute || localCtx); sendTrace('Fetched transits'); } catch {}
           }
+        }
           const after = availableCharts(localCtx);
           const newly = after.filter(c => !before.includes(c));
           for (const c of newly) localAdded.add(c);
@@ -1088,7 +1126,7 @@ ${iyerText}
 
 Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
 {"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
-        const compareResp = await callOpenAI(comparePrompt, false);
+        const compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' });
         let refinements: string[] = [];
         let consensus: string[] = [];
         let divergences: string[] = [];
@@ -1121,6 +1159,10 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
             scores = { bv: 0.5, parasara: 0.5, iyer: 0.5 };
             sendTrace('Comparison parse failed; using neutral scores');
           }
+        }
+        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0) {
+          scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+          sendTrace('Scores missing; using neutral defaults');
         }
         sendTrace(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}`);
         if (divergences.length) sendTrace(`Divergences flagged: ${divergences.length}`);

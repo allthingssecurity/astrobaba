@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [showTrace, setShowTrace] = useState(true);
   const [analysisTrace, setAnalysisTrace] = useState<string[]>([]);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
   const deriveRationale = (md: string): any[] => {
@@ -132,7 +133,8 @@ const App: React.FC = () => {
         birthDetails.location,
         useOffset as string,
         useLat as number,
-        useLon as number
+        useLon as number,
+        language
       );
       setComputeBundle(bundle);
       // Fetch Shadbala now that we have accurate TZ/coords
@@ -145,7 +147,7 @@ const App: React.FC = () => {
           latitude: bmeta.latitude,
           longitude: bmeta.longitude,
           location: bmeta.location,
-          la: bundle.compute?.meta?.language || 'en',
+          la: bundle.compute?.meta?.language || language,
         });
         setHoroscope({ ...bundle.ui, shadbala });
       } catch (e) {
@@ -527,6 +529,17 @@ const App: React.FC = () => {
                       />
                     </div>
                   )}
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Language</label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value as 'en' | 'hi')}
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-amber-500 outline-none transition-all text-amber-100"
+                  >
+                    <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                  </select>
                 </div>
                 <button
                   type="submit"

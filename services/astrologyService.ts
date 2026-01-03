@@ -89,14 +89,15 @@ export const calculateCharts = async (
   location: string,
   timezone?: string,
   latitude?: number,
-  longitude?: number
+  longitude?: number,
+  language: 'en' | 'hi' = 'en'
 ): Promise<ComputeBundle> => {
   const birth: any = {
     date: dob,
     time: time.length === 5 ? `${time}:00` : time,
     location,
     ayanamsa: 1,
-    la: 'en'
+    la: language
   };
   if (timezone) birth.timezone = timezone;
   if (latitude != null) birth.latitude = latitude;
