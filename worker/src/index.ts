@@ -514,6 +514,9 @@ Tone & Format:
 - Use crisp sections with headings and short bullets.
 - Each house: 3 bullets → Key signal (from sign/occupants), Practical meaning, One action.
 - Start with a brief Actionable Summary (3–5 bullets) tied to MD/AD.
+Life‑stage grounding:
+- Use the birth date to infer present age. If a topic (e.g., marriage, children, career) is typically already realized for the age, phrase it in past/present tense (e.g., "likely already married" / "marriage likely occurred in...") rather than future‑prospect language.
+- If age suggests early life, keep future‑oriented phrasing. Avoid generic "prospects" language when it contradicts the age.
 Citations policy (BV Raman reference):
 - First, extract 5–8 "Best Practices" from the reference excerpt as a numbered list BV1..BVn.
   • Each BV item: one short quote (5–12 words) in quotes + a concise paraphrase.
