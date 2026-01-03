@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BirthDetails, FullHoroscope, ChatMessage, ChartData, ComputeBundle } from './types';
 import { API_BASE, calculateCharts, fetchShadbala, downloadShadbalaPdf } from './services/astrologyService';
-import { analyzeHoroscope, chatWithAstrologer } from './services/geminiService';
+import { analyzeHoroscope, chatWithAstrologer, chatWithAstrologerStream } from './services/geminiService';
 import { analyzeWithLLM } from './services/astrologyService';
 import SouthIndianChart from './components/ChartVisual';
 import ReactMarkdown from 'react-markdown';
@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [chartSvgs, setChartSvgs] = useState<Record<string, string>>({});
   const [pendingCharts, setPendingCharts] = useState<string[]>([]);
   const [showTrace, setShowTrace] = useState(false);
+  const [analysisTrace, setAnalysisTrace] = useState<string[]>([]);
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
   const deriveRationale = (md: string): any[] => {
@@ -164,6 +165,7 @@ const App: React.FC = () => {
           const enriched = enrichedResp.ok ? await enrichedResp.json() : bundle.compute;
           const llm = await analyzeWithLLM(enriched);
           setChatHistory([{ role: 'model', text: llm.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
+          setAnalysisTrace(llm.trace || []);
           const r = (llm.rationale && llm.rationale.length > 0) ? llm.rationale : deriveRationale(llm.text);
           setRationale(r);
         }
@@ -184,12 +186,45 @@ const App: React.FC = () => {
     if (!question.trim() || !horoscope) return;
     
     const newHistory: ChatMessage[] = [...chatHistory, { role: 'user', text: question }];
-    setChatHistory(newHistory);
+    setChatHistory([...newHistory, { role: 'model', text: '' }]);
     setQuestion("");
     setPendingCharts(inferContextCharts(question));
     setAnalyzing(true);
 
     try {
+      await chatWithAstrologerStream(
+        'default-session',
+        question,
+        computeBundle || undefined,
+        5,
+        (chunk) => {
+          setChatHistory((prev) => {
+            const next = [...prev];
+            const idx = next.length - 1;
+            if (idx >= 0 && next[idx].role === 'model') {
+              next[idx] = { ...next[idx], text: (next[idx].text || '') + chunk };
+            }
+            return next;
+          });
+        },
+        (payload) => {
+          setChatHistory((prev) => {
+            const next = [...prev];
+            const idx = next.length - 1;
+            if (idx >= 0 && next[idx].role === 'model') {
+              next[idx] = {
+                ...next[idx],
+                usedCharts: payload.used_charts,
+                trace: payload.trace,
+                refinement: payload.refinement
+              };
+            }
+            return next;
+          });
+        }
+      );
+    } catch (e) {
+      // Fallback to non-stream if SSE fails
       const response = await chatWithAstrologer('default-session', question, computeBundle || undefined, 5);
       setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts, trace: response.trace, refinement: response.refinement }]);
     } finally {
@@ -273,7 +308,7 @@ const App: React.FC = () => {
     }
   }, [computeBundle, activeTab, chartStyle]);
 
-  const latestTrace = [...chatHistory].reverse().find((m) => m.role === 'model' && m.trace && m.trace.length)?.trace || [];
+  const latestTrace = [...chatHistory].reverse().find((m) => m.role === 'model' && m.trace && m.trace.length)?.trace || analysisTrace || [];
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
@@ -615,6 +650,7 @@ const App: React.FC = () => {
                            const enriched = resp.ok ? await resp.json() : computeBundle.compute;
                            const out = await analyzeWithLLM(enriched);
                            setChatHistory([{ role: 'model', text: out.text, usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
+                           setAnalysisTrace(out.trace || []);
                            const r = (out.rationale && out.rationale.length>0) ? out.rationale : deriveRationale(out.text);
                            setRationale(r);
                          } catch (e) {
@@ -641,14 +677,18 @@ const App: React.FC = () => {
                 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
-                  {showTrace && latestTrace.length > 0 && (
+                  {showTrace && (
                     <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[11px] text-slate-300">
                       <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Analysis Trace</div>
-                      <ol className="list-decimal pl-4 space-y-1">
-                        {latestTrace.map((t, i) => (
-                          <li key={i}>{t}</li>
-                        ))}
-                      </ol>
+                      {latestTrace.length > 0 ? (
+                        <ol className="list-decimal pl-4 space-y-1">
+                          {latestTrace.map((t, i) => (
+                            <li key={i}>{t}</li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <div className="text-[10px] text-slate-500">No trace yet. Run a chat or detailed analysis.</div>
+                      )}
                     </div>
                   )}
                   {chatHistory.length === 0 && analyzing && (

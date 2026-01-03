@@ -1,5 +1,5 @@
 import { ComputeBundle } from "../types";
-import { analyzeWithBackend, chatWithBackend } from "./astrologyService";
+import { analyzeWithBackend, chatWithBackend, chatWithBackendStream } from "./astrologyService";
 
 export const analyzeHoroscope = async (
   _birthDetails: any,
@@ -18,4 +18,16 @@ export const chatWithAstrologer = async (
 ): Promise<{ reply: string; used_charts?: string[]; trace?: string[]; refinement?: string }> => {
   const context = computeBundle?.compute || undefined;
   return chatWithBackend(sessionId, message, context, maxIterations);
+};
+
+export const chatWithAstrologerStream = async (
+  sessionId: string,
+  message: string,
+  computeBundle: ComputeBundle | any,
+  maxIterations: number,
+  onDelta: (chunk: string) => void,
+  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void
+): Promise<void> => {
+  const context = computeBundle?.compute || undefined;
+  return chatWithBackendStream(sessionId, message, context, maxIterations, onDelta, onDone);
 };

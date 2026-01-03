@@ -142,7 +142,7 @@ export const analyzeWithBackend = async (compute: any, question?: string): Promi
   return data.analysis as string;
 };
 
-export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rationale: any[] } > => {
+export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rationale: any[]; trace?: string[] } > => {
   const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -150,7 +150,7 @@ export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rati
   });
   if (!resp.ok) throw new Error('Analyze LLM failed');
   const data = await resp.json();
-  return { text: data.analysis as string, rationale: (data.rationale || []) as any[] };
+  return { text: data.analysis as string, rationale: (data.rationale || []) as any[], trace: (data.trace || []) as string[] };
 };
 
 export const chatWithBackend = async (
@@ -172,6 +172,55 @@ export const chatWithBackend = async (
     trace: data.trace as string[] | undefined,
     refinement: data.refinement as string | undefined
   };
+};
+
+export const chatWithBackendStream = async (
+  sessionId: string,
+  message: string,
+  context: any,
+  maxIterations: number,
+  onDelta: (chunk: string) => void,
+  onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void
+): Promise<void> => {
+  const resp = await fetch(`${API_BASE}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations, stream: true })
+  });
+  if (!resp.ok || !resp.body) throw new Error('Chat stream failed');
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split(/\n\n/);
+    buffer = parts.pop() || '';
+    for (const part of parts) {
+      const lines = part.split(/\n/);
+      let event = 'message';
+      let data = '';
+      for (const line of lines) {
+        if (line.startsWith('event:')) event = line.replace('event:', '').trim();
+        if (line.startsWith('data:')) data += line.replace('data:', '').trim();
+      }
+      if (!data) continue;
+      if (event === 'done') {
+        try {
+          const payload = JSON.parse(data);
+          onDone(payload);
+        } catch {
+          onDone({});
+        }
+      } else {
+        try {
+          const payload = JSON.parse(data);
+          if (payload?.type === 'delta' && payload?.text) onDelta(payload.text as string);
+        } catch {}
+      }
+    }
+  }
 };
 
 // --- Shadbala helpers ---

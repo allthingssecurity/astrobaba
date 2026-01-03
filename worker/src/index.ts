@@ -494,6 +494,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   const md = facts?.dasha?.mahadasha?.name; const mdEnd = facts?.dasha?.mahadasha?.end;
   const ad = facts?.dasha?.antardasha?.name; const adEnd = facts?.dasha?.antardasha?.end;
   // Load reference book excerpt (pre-extracted text hosted with the site)
+  const trace: string[] = [];
   let refExcerpt = '';
   let paraExcerpt = '';
   try {
@@ -503,6 +504,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
       const t = await r.text();
       // Limit to avoid token overflow (tight, focused excerpt)
       refExcerpt = t.slice(0, 12000);
+      trace.push('Loaded BV Raman excerpt');
     }
   } catch {}
   try {
@@ -511,6 +513,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     if (r2.ok) {
       const t2 = await r2.text();
       paraExcerpt = t2.slice(0, 12000);
+      trace.push('Loaded Parasara excerpt');
     }
   } catch {}
   const sys = `You are a precise Vedic astrologer (BPHS) writing a professional, client‑ready report.
@@ -562,6 +565,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
   const data = await r.json() as any;
   let text = data?.choices?.[0]?.message?.content || '';
   let rationale: any[] = [];
+  trace.push('Generated report with BV/P citations');
   try {
     const start = text.indexOf('```json');
     if (start >= 0) {
@@ -574,7 +578,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
     }
   } catch {}
   if (!text) text = 'No answer';
-  return json({ analysis: text, rationale });
+  return json({ analysis: text, rationale, trace });
 }
 
 // Intent detection for on-demand varga enrichment in chat
@@ -705,6 +709,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened.';
 
   const maxIterations = Math.min(Math.max(1, body?.max_iterations || 2), 5);
+  const stream = !!body?.stream;
   let usedCharts: string[] = detectIntentCharts(message);
   let requestedCharts: string[] = [];
   const trace: string[] = [];
@@ -715,6 +720,23 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   if (!env.OPENAI_API_KEY) {
     return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts, trace });
   }
+
+  const callOpenAI = async (userPrompt: string, streamMode: boolean) => {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        stream: streamMode,
+        messages: [
+          { role: 'system', content: sys },
+          { role: 'user', content: userPrompt }
+        ]
+      })
+    });
+    return r;
+  };
 
   for (let i = 0; i < maxIterations; i++) {
     const need = Array.from(new Set([...usedCharts, ...requestedCharts]));
@@ -732,18 +754,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
     const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
 
-    const r = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        temperature: 0.2,
-        messages: [
-          { role: 'system', content: sys },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    });
+    const r = await callOpenAI(userPrompt, false);
     if (!r.ok) return err('openai_failed', 502);
     const data = await r.json() as any;
     lastResponse = data?.choices?.[0]?.message?.content || 'No answer';
@@ -767,7 +778,64 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
 
   const refinement = addedCharts.size ? `Refined with additional charts: ${Array.from(addedCharts).map(c => c.toUpperCase()).join(', ')}.` : '';
   const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
-  return json({ reply: finalText || lastResponse, used_charts: finalUsed, trace, refinement });
+  if (!stream) {
+    return json({ reply: finalText || lastResponse, used_charts: finalUsed, trace, refinement });
+  }
+
+  // Stream final answer using OpenAI streaming API
+  const built = buildContext(ctx || {});
+  const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
+  const streamPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
+  trace.push('Streaming final answer.');
+
+  const sr = await callOpenAI(streamPrompt, true);
+  if (!sr.ok || !sr.body) return err('openai_failed', 502);
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  let fullText = '';
+  const streamBody = new ReadableStream({
+    async start(controller) {
+      const reader = sr.body!.getReader();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\n/);
+        buffer = lines.pop() || '';
+        for (const lineRaw of lines) {
+          const line = lineRaw.trim();
+          if (!line.startsWith('data:')) continue;
+          const data = line.replace(/^data:\s*/, '');
+          if (data === '[DONE]') {
+            const donePayload = JSON.stringify({ used_charts: finalUsed, trace, refinement });
+            controller.enqueue(encoder.encode(`event: done\ndata: ${donePayload}\n\n`));
+            controller.close();
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed?.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullText += delta;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`));
+            }
+          } catch {}
+        }
+      }
+      const donePayload = JSON.stringify({ used_charts: finalUsed, trace, refinement });
+      controller.enqueue(encoder.encode(`event: done\ndata: ${donePayload}\n\n`));
+      controller.close();
+    }
+  });
+  return new Response(streamBody, {
+    status: 200,
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      'access-control-allow-origin': '*'
+    }
+  });
 }
 
 async function handleGeoResolve(url: URL, env: Env): Promise<Response> {
