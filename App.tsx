@@ -229,9 +229,8 @@ const App: React.FC = () => {
     if (!horoscope) return null;
     const svg = chartSvgs[chartSvgKey(activeTab)];
     if (svg) {
-      const svgBg = chartStyle === 'north-indian' ? 'bg-slate-100' : 'bg-slate-900';
       return (
-        <div className={`w-full overflow-auto ${svgBg} p-2 rounded-lg border border-slate-700`}>
+        <div className="w-full overflow-auto bg-white p-2 rounded-lg border border-slate-700 text-slate-900">
           <div dangerouslySetInnerHTML={{ __html: svg }} />
         </div>
       );
