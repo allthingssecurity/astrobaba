@@ -623,9 +623,12 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
         send('trace', { text: msg });
       };
       sendTrace('Starting detailed analysis');
+      sendTrace('Parsing birth data and chart facts');
+      sendTrace('Checking required vargas (D1, D9, D10, D4, D7)');
       if (refExcerpt) sendTrace('BV Raman excerpt loaded');
       if (paraExcerpt) sendTrace('Parasara excerpt loaded');
-      sendTrace('Generating report');
+      sendTrace('Requesting BV/P principle extraction');
+      sendTrace('Generating report draft');
 
       const reader = sr.body!.getReader();
       let buffer = '';
@@ -640,23 +643,25 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
           const line = lineRaw.trim();
           if (!line.startsWith('data:')) continue;
           const data = line.replace(/^data:\s*/, '');
-          if (data === '[DONE]') {
-            let rationale: any[] = [];
-            let cleaned = fullText;
-            try {
-              const start = fullText.indexOf('```json');
-              if (start >= 0) {
-                const end = fullText.indexOf('```', start + 7);
-                const jsonBlock = fullText.substring(start + 7, end).trim();
-                const parsed = JSON.parse(jsonBlock);
-                if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
-                cleaned = (fullText.substring(0, start) + fullText.substring(end + 3)).trim();
-              }
-            } catch {}
-            send('done', { text: cleaned || 'No answer', rationale, trace });
-            controller.close();
-            return;
-          }
+            if (data === '[DONE]') {
+              let rationale: any[] = [];
+              let cleaned = fullText;
+              sendTrace('Parsing rationale JSON');
+              try {
+                const start = fullText.indexOf('```json');
+                if (start >= 0) {
+                  const end = fullText.indexOf('```', start + 7);
+                  const jsonBlock = fullText.substring(start + 7, end).trim();
+                  const parsed = JSON.parse(jsonBlock);
+                  if (parsed && Array.isArray(parsed.rationale)) rationale = parsed.rationale;
+                  cleaned = (fullText.substring(0, start) + fullText.substring(end + 3)).trim();
+                }
+              } catch {}
+              sendTrace('Refinement complete');
+              send('done', { text: cleaned || 'No answer', rationale, trace });
+              controller.close();
+              return;
+            }
           try {
             const parsed = JSON.parse(data);
             const delta = parsed?.choices?.[0]?.delta?.content;

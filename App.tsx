@@ -34,7 +34,7 @@ const App: React.FC = () => {
   const [chartStyle, setChartStyle] = useState<'south-indian' | 'north-indian'>('south-indian');
   const [chartSvgs, setChartSvgs] = useState<Record<string, string>>({});
   const [pendingCharts, setPendingCharts] = useState<string[]>([]);
-  const [showTrace, setShowTrace] = useState(false);
+  const [showTrace, setShowTrace] = useState(true);
   const [analysisTrace, setAnalysisTrace] = useState<string[]>([]);
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
