@@ -1047,11 +1047,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
-        const streamPrompt = `${builtFinal.text ? builtFinal.text + '
-
-' : ''}${constraintsFinal ? constraintsFinal + '
-' : ''}Question: ${message}
-Answer directly. Do NOT include NEXT_CHARTS.`;
+        const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}Question: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         const bvPrompt = `${streamPrompt}
 Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
         const paraPrompt = `${streamPrompt}
