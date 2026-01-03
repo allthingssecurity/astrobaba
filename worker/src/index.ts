@@ -51,6 +51,18 @@ function err(detail: string, status = 400): Response {
   return json({ detail }, status);
 }
 
+function withCors(resp: Response): Response {
+  const headers = new Headers(resp.headers);
+  headers.set('access-control-allow-origin', '*');
+  headers.set('access-control-allow-methods', 'GET,POST,OPTIONS');
+  headers.set('access-control-allow-headers', 'Content-Type,Authorization');
+  return new Response(resp.body, {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers,
+  });
+}
+
 function formatOffset(seconds: number): string {
   const sign = seconds >= 0 ? '+' : '-';
   const sec = Math.abs(seconds);
@@ -1034,24 +1046,24 @@ export default {
     try {
       if (url.pathname === '/api/health' && request.method === 'GET') {
         // Simple diagnostics to verify bindings and routing from the browser
-        return json({
+        return withCors(json({
           ok: true,
           has_openai: !!env.OPENAI_API_KEY,
           account_bound: !!env.PROKERALA_CLIENT_ID && !!env.PROKERALA_CLIENT_SECRET,
           has_locationiq: !!env.LOCATIONIQ_KEY,
-        });
+        }));
       }
-      if (url.pathname === '/api/geo/resolve' && request.method === 'GET') return handleGeoResolve(url, env);
-      if (url.pathname === '/api/compute' && request.method === 'POST') return handleCompute(request, env);
-      if (url.pathname === '/api/analyze' && request.method === 'POST') return handleAnalyze(request);
-      if (url.pathname === '/api/analyze-llm' && request.method === 'POST') return handleAnalyzeLLM(request, env);
-      if (url.pathname === '/api/chart' && request.method === 'POST') return handleChart(request, env);
-      if (url.pathname === '/api/chat' && request.method === 'POST') return handleChat(request, env);
-      if (url.pathname === '/api/shadbala/pdf' && request.method === 'POST') return handleShadbalaPdf(request, env);
-      if (url.pathname === '/api/shadbala/json') return err('Not implemented on Worker; use PDF', 501);
-      return new Response('Not Found', { status: 404 });
+      if (url.pathname === '/api/geo/resolve' && request.method === 'GET') return withCors(await handleGeoResolve(url, env));
+      if (url.pathname === '/api/compute' && request.method === 'POST') return withCors(await handleCompute(request, env));
+      if (url.pathname === '/api/analyze' && request.method === 'POST') return withCors(await handleAnalyze(request));
+      if (url.pathname === '/api/analyze-llm' && request.method === 'POST') return withCors(await handleAnalyzeLLM(request, env));
+      if (url.pathname === '/api/chart' && request.method === 'POST') return withCors(await handleChart(request, env));
+      if (url.pathname === '/api/chat' && request.method === 'POST') return withCors(await handleChat(request, env));
+      if (url.pathname === '/api/shadbala/pdf' && request.method === 'POST') return withCors(await handleShadbalaPdf(request, env));
+      if (url.pathname === '/api/shadbala/json') return withCors(err('Not implemented on Worker; use PDF', 501));
+      return withCors(new Response('Not Found', { status: 404 }));
     } catch (e: any) {
-      return err(e?.message || 'internal_error', 500);
+      return withCors(err(e?.message || 'internal_error', 500));
     }
   },
 };
