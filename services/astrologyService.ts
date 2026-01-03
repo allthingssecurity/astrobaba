@@ -164,7 +164,14 @@ export const analyzeWithLLMStream = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ compute, stream: true })
   });
-  if (!resp.ok || !resp.body) throw new Error('Analyze LLM stream failed');
+  if (!resp.ok) throw new Error('Analyze LLM stream failed');
+  const contentType = resp.headers.get('content-type') || '';
+  if (!contentType.includes('text/event-stream')) {
+    const data = await resp.json();
+    onDone({ text: data.analysis as string, rationale: data.rationale as any[], trace: data.trace as string[] });
+    return;
+  }
+  if (!resp.body) throw new Error('Analyze LLM stream failed');
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
