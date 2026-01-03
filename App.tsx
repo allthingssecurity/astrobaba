@@ -214,6 +214,7 @@ const App: React.FC = () => {
     setChatHistory([...newHistory, { role: 'model', text: '' }]);
     setQuestion("");
     setPendingCharts(inferContextCharts(question));
+    setAnalysisTrace(['Agent started']);
     setAnalyzing(true);
 
     try {
@@ -337,7 +338,8 @@ const App: React.FC = () => {
     }
   }, [computeBundle, activeTab, chartStyle]);
 
-  const latestTrace = [...chatHistory].reverse().find((m) => m.role === 'model' && m.trace && m.trace.length)?.trace || analysisTrace || [];
+  const latestTrace = [...chatHistory].reverse().find((m) => m.role === 'model' && m.trace && m.trace.length)?.trace || [];
+  const activeTrace = analysisTrace.length > 0 ? analysisTrace : latestTrace;
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20 font-sans">
@@ -734,9 +736,9 @@ const App: React.FC = () => {
                   {showTrace && (
                     <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[11px] text-slate-300">
                       <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Analysis Trace</div>
-                      {latestTrace.length > 0 ? (
+                      {activeTrace.length > 0 ? (
                         <ol className="list-decimal pl-4 space-y-1">
-                          {latestTrace.map((t, i) => (
+                          {activeTrace.map((t, i) => (
                             <li key={i}>{t}</li>
                           ))}
                         </ol>
