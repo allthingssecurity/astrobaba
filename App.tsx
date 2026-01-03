@@ -805,20 +805,6 @@ const App: React.FC = () => {
                 
                 {/* Chat Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
-                  {showTrace && (
-                    <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-4 text-[11px] text-slate-300">
-                      <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Analysis Trace</div>
-                      {activeTrace.length > 0 ? (
-                        <ol className="list-decimal pl-4 space-y-1">
-                          {activeTrace.map((t, i) => (
-                            <li key={i}>{t}</li>
-                          ))}
-                        </ol>
-                      ) : (
-                        <div className="text-[10px] text-slate-500">No trace yet. Run a chat or detailed analysis.</div>
-                      )}
-                    </div>
-                  )}
                   {chatHistory.length === 0 && analyzing && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-4">
                       <div className="w-12 h-12 border-4 border-slate-600 border-t-amber-500 rounded-full animate-spin"></div>
@@ -839,6 +825,26 @@ const App: React.FC = () => {
                             {msg.refinement && (
                               <div className="mt-3 text-[10px] text-slate-400">
                                 {msg.refinement}
+                              </div>
+                            )}
+                            {showTrace && (
+                              <div className="mt-4 text-[11px] text-slate-300 border-t border-slate-700 pt-3">
+                                <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Analysis Trace</div>
+                                {(() => {
+                                  const isLastModel = idx === [...chatHistory].map((m, i) => m.role === 'model' ? i : -1).filter((i) => i >= 0).slice(-1)[0];
+                                  const traceList = (msg.trace && msg.trace.length > 0)
+                                    ? msg.trace
+                                    : (isLastModel ? activeTrace : []);
+                                  return traceList.length > 0 ? (
+                                    <ol className="list-decimal pl-4 space-y-1">
+                                      {traceList.map((t, i) => (
+                                        <li key={i}>{t}</li>
+                                      ))}
+                                    </ol>
+                                  ) : (
+                                    <div className="text-[10px] text-slate-500">Trace will appear as the analysis runs.</div>
+                                  );
+                                })()}
                               </div>
                             )}
                             {showSources && rationale.length > 0 && (
