@@ -1097,14 +1097,30 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
           const compareData = await compareResp.json() as any;
           const compareText = compareData?.choices?.[0]?.message?.content || '{}';
           try {
-            const parsed = JSON.parse(compareText);
-            refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
-            consensus = Array.isArray(parsed.consensus) ? parsed.consensus : [];
-            divergences = Array.isArray(parsed.divergences) ? parsed.divergences : [];
-            if (parsed.scores) {
-              scores = { bv: parsed.scores.bv || 0, parasara: parsed.scores.parasara || 0, iyer: parsed.scores.iyer || 0 };
+            let parsed: any;
+            try {
+              parsed = JSON.parse(compareText);
+            } catch {
+              const start = compareText.indexOf('{');
+              const end = compareText.lastIndexOf('}');
+              if (start >= 0 && end > start) parsed = JSON.parse(compareText.slice(start, end + 1));
             }
-          } catch {}
+            if (parsed) {
+              refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
+              consensus = Array.isArray(parsed.consensus) ? parsed.consensus : [];
+              divergences = Array.isArray(parsed.divergences) ? parsed.divergences : [];
+              if (parsed.scores) {
+                scores = {
+                  bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : scores.bv,
+                  parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : scores.parasara,
+                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer
+                };
+              }
+            }
+          } catch {
+            scores = { bv: 0.5, parasara: 0.5, iyer: 0.5 };
+            sendTrace('Comparison parse failed; using neutral scores');
+          }
         }
         sendTrace(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}`);
         if (divergences.length) sendTrace(`Divergences flagged: ${divergences.length}`);
