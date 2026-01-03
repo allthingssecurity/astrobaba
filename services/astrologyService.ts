@@ -205,6 +205,7 @@ export const analyzeWithLLMStream = async (
       } else {
         try {
           const payload = JSON.parse(data);
+          if (payload?.type === 'trace' && payload?.text && onTrace) onTrace(payload.text as string);
           if (payload?.type === 'delta' && payload?.text) onDelta(payload.text as string);
         } catch {}
       }

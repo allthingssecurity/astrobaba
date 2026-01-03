@@ -191,7 +191,7 @@ const App: React.FC = () => {
               setAnalysisTrace(payload?.trace || []);
               if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
             },
-            (msg) => setAnalysisTrace((prev) => [...prev, msg])
+            (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]))
           );
         }
       } catch {
@@ -250,7 +250,7 @@ const App: React.FC = () => {
         }
         ,
         (msg) => {
-          setAnalysisTrace((prev) => [...prev, msg]);
+          setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]));
         }
       );
     } catch (e) {
@@ -707,7 +707,7 @@ const App: React.FC = () => {
                                setAnalysisTrace(payload?.trace || []);
                                if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
                              },
-                             (msg) => setAnalysisTrace((prev) => [...prev, msg])
+                             (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]))
                            );
                          } catch (e) {
                            alert('Could not generate detailed analysis.');

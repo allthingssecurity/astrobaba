@@ -621,6 +621,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       const sendTrace = (msg: string) => {
         trace.push(msg);
         send('trace', { text: msg });
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
       sendTrace('Starting detailed analysis');
       sendTrace('Parsing birth data and chart facts');
@@ -812,7 +813,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   let ctx = body?.context || null;
   if (!message) return err('message required', 400);
 
-  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened.';
+  const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened. If the question is ambiguous or missing timeframe, ask 1–2 clarifying questions before answering.';
 
   const maxIterations = Math.min(Math.max(1, body?.max_iterations || 2), 5);
   const stream = !!body?.stream;
@@ -899,6 +900,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
       const sendTrace = (msg: string) => {
         trace.push(msg);
         send('trace', { text: msg });
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
       try {
         sendTrace('Agent started');
