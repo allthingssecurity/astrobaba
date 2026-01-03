@@ -205,6 +205,8 @@ const App: React.FC = () => {
     'saptamsa'
   );
 
+  const chartSvgKey = (tab: typeof activeTab, style = chartStyle) => `${style}-${tab}`;
+
   const loadChartSvg = async (tab: typeof activeTab) => {
     if (!computeBundle) return;
     try {
@@ -216,19 +218,20 @@ const App: React.FC = () => {
       });
       if (!resp.ok) throw new Error('chart svg failed');
       const svg = await resp.text();
-      setChartSvgs((prev) => ({ ...prev, [tab]: svg }));
+      setChartSvgs((prev) => ({ ...prev, [chartSvgKey(tab)]: svg }));
     } catch {
       // fallback to local grid chart when svg isn't available
-      setChartSvgs((prev) => ({ ...prev, [tab]: '' }));
+      setChartSvgs((prev) => ({ ...prev, [chartSvgKey(tab)]: '' }));
     }
   };
 
   const renderActiveChart = () => {
     if (!horoscope) return null;
-    const svg = chartSvgs[activeTab];
+    const svg = chartSvgs[chartSvgKey(activeTab)];
     if (svg) {
+      const svgBg = chartStyle === 'north-indian' ? 'bg-slate-100' : 'bg-slate-900';
       return (
-        <div className="w-full overflow-auto bg-slate-900 p-2 rounded-lg border border-slate-700">
+        <div className={`w-full overflow-auto ${svgBg} p-2 rounded-lg border border-slate-700`}>
           <div dangerouslySetInnerHTML={{ __html: svg }} />
         </div>
       );
@@ -479,7 +482,7 @@ const App: React.FC = () => {
                   {/* Chart Visual */}
                   <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-xl">
                     {renderActiveChart()}
-                    {chartStyle === 'north-indian' && !chartSvgs[activeTab] && (
+                    {chartStyle === 'north-indian' && !chartSvgs[chartSvgKey(activeTab)] && (
                       <div className="mt-2 text-[10px] text-slate-400 text-center">
                         North Indian SVG unavailable — showing fallback grid.
                       </div>
