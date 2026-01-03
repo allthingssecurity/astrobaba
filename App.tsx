@@ -164,7 +164,7 @@ const App: React.FC = () => {
         if (birthMeta) {
           const enrichedResp = await fetch(`${API_BASE}/api/compute`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ birth: birthMeta, include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'], include_transits: false })
+            body: JSON.stringify({ birth: { ...birthMeta, la: language }, include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'], include_transits: false })
           });
           const enriched = enrichedResp.ok ? await enrichedResp.json() : bundle.compute;
           setChatHistory([{ role: 'model', text: '', usedCharts: ['lagna', 'navamsa', 'dasamsa', 'chaturthamsa', 'saptamsa'] }]);
@@ -753,7 +753,7 @@ const App: React.FC = () => {
                              method: 'POST',
                              headers: { 'Content-Type': 'application/json' },
                              body: JSON.stringify({
-                               birth: birthMeta,
+                               birth: { ...birthMeta, la: language },
                                include_divisional: ['lagna','navamsa','dasamsa','chaturthamsa','saptamsa'],
                                include_transits: false
                              })
