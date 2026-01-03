@@ -543,15 +543,13 @@ Life‑stage grounding:
 - Use the birth date to infer present age. If a topic (e.g., marriage, children, career) is typically already realized for the age, phrase it in past/present tense (e.g., "likely already married" / "marriage likely occurred in...") rather than future‑prospect language.
 - If age suggests early life, keep future‑oriented phrasing. Avoid generic "prospects" language when it contradicts the age.
 Citation sources (BV Raman + Parasara):
-- Extract 5–8 "Best Practices" from the BV Raman excerpt as a numbered list BV1..BVn.
-  • Each BV item: one short quote (5–12 words) in quotes + a concise paraphrase.
-- Extract 4–6 "Core Principles" from the Parasara excerpt as a numbered list P1..Pn.
-  • Each P item: one short quote (5–12 words) in quotes + a concise paraphrase.
-- When applying guidance later, add inline markers like [BV3] or [P2] where relevant.
-- Close with a References section: list BV1..BVn with quotes and: B. V. Raman, "How to Judge a Horoscope" (reference excerpt); and P1..Pn with quotes and: Maharshi Parashara, "Brihat Parasara Hora Sastra" (reference excerpt). Do NOT invent page numbers.
+- Extract 5–8 "Best Practices (BV Raman)" with a short quote + paraphrase (no BV codes in the report text).
+- Extract 4–6 "Core Principles (Parasara)" with a short quote + paraphrase (no P codes in the report text).
+- Use citations implicitly; do NOT include [BVx]/[Px] markers in the visible report text.
+- Close with a References section listing BV Raman and Parasara quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### Core Principles (P1..Pn)\n- 4–6 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8) and at least one [BVx] marker when a best practice is applied.\n\n### Career (D10)\n- Use D10 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Add [BVx]. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n- Parasara list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### Core Principles (P1..Pn)\n- 4–6 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8). Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n- Parasara list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -908,6 +906,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
           const intentCharts = detectIntentCharts(message);
           sendTrace(`Intent detected: ${intentCharts.map(c => c.toUpperCase()).join(', ')}`);
         } catch {}
+        sendTrace('Phase 1: Primary reading (BV Raman)');
         // Re-run the loop to emit live trace
         let localCtx = ctx;
         let localUsed = usedCharts.slice();
@@ -936,6 +935,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
           const next = parseNextCharts(lastResponse);
           finalText = lastResponse.replace(/^\s*NEXT_CHARTS:.*$/im, '').trim();
           if (next.length === 0) {
+            sendTrace('Phase 2: Cross-check (Parasara)');
             sendTrace('Final answer ready; streaming tokens');
             ctx = localCtx;
             usedCharts = localUsed;

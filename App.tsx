@@ -5,6 +5,7 @@ import { analyzeHoroscope, chatWithAstrologer, chatWithAstrologerStream } from '
 import { analyzeWithLLM } from './services/astrologyService';
 import SouthIndianChart from './components/ChartVisual';
 import ReactMarkdown from 'react-markdown';
+import { jsPDF } from 'jspdf';
 
 const App: React.FC = () => {
   const [step, setStep] = useState<'input' | 'dashboard'>('input');
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   const [pendingCharts, setPendingCharts] = useState<string[]>([]);
   const [showTrace, setShowTrace] = useState(true);
   const [analysisTrace, setAnalysisTrace] = useState<string[]>([]);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   // Fallback rationale extractor: parse analysis markdown for Evidence and [BVx] markers
   const deriveRationale = (md: string): any[] => {
@@ -320,6 +322,52 @@ const App: React.FC = () => {
       saptamsa: 'D7',
     };
     return map[ct] || ct.toUpperCase();
+  };
+
+  const toPlainText = (md: string): string => {
+    return md
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/#+\s?/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/^\s*[-*]\s+/gm, '')
+      .replace(/\[(BV|P)\d+\]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
+  const downloadAnalysisPdf = () => {
+    if (pdfBusy) return;
+    const latest = [...chatHistory].reverse().find((m) => m.role === 'model' && m.text);
+    if (!latest) return;
+    setPdfBusy(true);
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
+      const title = 'AstroBaba Analysis';
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(title, margin, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      const body = toPlainText(latest.text);
+      const lines = doc.splitTextToSize(body, pageWidth);
+      let y = 80;
+      const lineHeight = 14;
+      for (const line of lines) {
+        if (y > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(line, margin, y);
+        y += lineHeight;
+      }
+      doc.save('astrobaba-analysis.pdf');
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   const inferContextCharts = (text: string): string[] => {
@@ -720,6 +768,13 @@ const App: React.FC = () => {
                      >
                         {llmAnalyzing ? 'Generating…' : (chatHistory.length>0 ? 'Re-run Detailed Analysis' : 'Generate Detailed Analysis')}
                       </button>
+                     <button
+                       onClick={downloadAnalysisPdf}
+                       className="text-[10px] px-2 py-1 rounded border border-slate-600 hover:border-amber-500 hover:text-amber-300 disabled:opacity-50"
+                       disabled={pdfBusy}
+                     >
+                       {pdfBusy ? 'Preparing PDF…' : 'Download Analysis PDF'}
+                     </button>
                      <label className="flex items-center gap-1 text-[10px] text-slate-400 ml-2 select-none">
                        <input type="checkbox" checked={showSources} onChange={(e)=>setShowSources(e.target.checked)} />
                        Show sources
@@ -763,7 +818,7 @@ const App: React.FC = () => {
                       }`}>
                         {msg.role === 'model' ? (
                           <div className="prose prose-invert prose-sm max-w-none prose-headings:text-amber-200 prose-headings:font-serif prose-strong:text-amber-100 prose-a:text-purple-300">
-                            <ReactMarkdown>{msg.text}</ReactMarkdown>
+                            <ReactMarkdown>{msg.text.replace(/\[(BV|P)\d+\]/g, '')}</ReactMarkdown>
                             {msg.refinement && (
                               <div className="mt-3 text-[10px] text-slate-400">
                                 {msg.refinement}

@@ -91,3 +91,81 @@
 1:10:25 pm [vite] (client) hmr update /App.tsx
 1:10:29 pm [vite] (client) hmr update /App.tsx
 1:10:35 pm [vite] (client) hmr update /App.tsx
+1:26:30 pm [vite] (client) hmr update /App.tsx
+1:26:30 pm [vite] Internal server error: Failed to resolve import "jspdf" from "App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Users/I074560/Downloads/experiments/parasara-hora-ai/App.tsx:8:22
+  6  |  import SouthIndianChart from "./components/ChartVisual";
+  7  |  import ReactMarkdown from "react-markdown";
+  8  |  import { jsPDF } from "jspdf";
+     |                         ^
+  9  |  const App = () => {
+  10 |    _s();
+      at TransformPluginContext._formatLog (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42528:41)
+      at TransformPluginContext.error (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42525:16)
+      at normalizeUrl (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40504:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40623:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40550:7)
+      at async EnvironmentPluginContainer.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42323:18)
+      at async loadAndTransform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35739:27)
+      at async viteTransformMiddleware (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:37254:24)
+1:26:37 pm [vite] (client) page reload App.tsx
+1:26:38 pm [vite] (client) Pre-transform error: Failed to resolve import "jspdf" from "App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Users/I074560/Downloads/experiments/parasara-hora-ai/App.tsx:8:22
+  6  |  import SouthIndianChart from "./components/ChartVisual";
+  7  |  import ReactMarkdown from "react-markdown";
+  8  |  import { jsPDF } from "jspdf";
+     |                         ^
+  9  |  const App = () => {
+  10 |    _s();
+1:26:38 pm [vite] Internal server error: Failed to resolve import "jspdf" from "App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Users/I074560/Downloads/experiments/parasara-hora-ai/App.tsx:8:22
+  6  |  import SouthIndianChart from "./components/ChartVisual";
+  7  |  import ReactMarkdown from "react-markdown";
+  8  |  import { jsPDF } from "jspdf";
+     |                         ^
+  9  |  const App = () => {
+  10 |    _s();
+      at TransformPluginContext._formatLog (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42528:41)
+      at TransformPluginContext.error (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42525:16)
+      at normalizeUrl (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40504:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40623:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40550:7)
+      at async EnvironmentPluginContainer.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42323:18)
+      at async loadAndTransform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35739:27)
+      at async viteTransformMiddleware (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:37254:24)
+1:26:43 pm [vite] (client) page reload App.tsx
+1:26:44 pm [vite] (client) Pre-transform error: Failed to resolve import "jspdf" from "App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Users/I074560/Downloads/experiments/parasara-hora-ai/App.tsx:8:22
+  6  |  import SouthIndianChart from "./components/ChartVisual";
+  7  |  import ReactMarkdown from "react-markdown";
+  8  |  import { jsPDF } from "jspdf";
+     |                         ^
+  9  |  const App = () => {
+  10 |    _s();
+1:26:44 pm [vite] Internal server error: Failed to resolve import "jspdf" from "App.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /Users/I074560/Downloads/experiments/parasara-hora-ai/App.tsx:8:22
+  6  |  import SouthIndianChart from "./components/ChartVisual";
+  7  |  import ReactMarkdown from "react-markdown";
+  8  |  import { jsPDF } from "jspdf";
+     |                         ^
+  9  |  const App = () => {
+  10 |    _s();
+      at TransformPluginContext._formatLog (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42528:41)
+      at TransformPluginContext.error (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42525:16)
+      at normalizeUrl (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40504:23)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40623:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:40550:7)
+      at async EnvironmentPluginContainer.transform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:42323:18)
+      at async loadAndTransform (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:35739:27)
+      at async viteTransformMiddleware (file:///Users/I074560/Downloads/experiments/parasara-hora-ai/node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:37254:24)
