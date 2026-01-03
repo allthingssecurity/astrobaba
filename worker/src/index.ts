@@ -549,7 +549,7 @@ Citation sources (BV Raman + Parasara):
 - Close with a References section listing BV Raman and Parasara quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV1..BVn)\n- 5–8 numbered items with short quotes + paraphrase.\n\n### Core Principles (P1..Pn)\n- 4–6 numbered items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8). Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV list with quotes + attribution line.\n- Parasara list with quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases, number them BV1..BVn, then apply them with [BVx] markers):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases, number them P1..Pn, then apply them with [Px] markers):\n\n${paraExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below:\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include an "Evidence:" clause citing the exact placement(s) used (e.g., D1: Mars in Vrischika H8). Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Include "Evidence:" in each bullet.\n\n### Relationships (D9)\n- Use D9 facts only. Include "Evidence:" in each bullet.\n\n### Assets (D4)\n- Use D4 facts only. Include "Evidence:" in each bullet.\n\n### Children (D7)\n- Use D7 facts only. Include "Evidence:" in each bullet.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Include "Evidence:".\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -593,23 +593,42 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
     return json({ analysis: text, rationale, trace });
   }
 
-  // Streaming analysis (SSE)
+  // Streaming analysis (SSE) with draft + verification loop
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-  const sr = await fetch('https://api.openai.com/v1/chat/completions', {
+  const draftResp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       temperature: 0.15,
-      stream: true,
       messages: [
         { role: 'system', content: sys },
         { role: 'user', content: user }
       ]
     })
   });
-  if (!sr.ok || !sr.body) return err('openai_failed', 502);
+  if (!draftResp.ok) return err('openai_failed', 502);
+  const draftData = await draftResp.json() as any;
+  let draftText = draftData?.choices?.[0]?.message?.content || '';
+  if (!draftText) draftText = 'No answer';
+
+  const verifierPrompt = `Facts JSON:\n\n${JSON.stringify(facts)}\n\nBV Raman excerpt:\n${refExcerpt}\n\nParasara excerpt:\n${paraExcerpt}\n\nDraft:\n${draftText}\n\nTask: Verify the draft for internal consistency with the facts, BV Raman best practices, Parasara principles, and general jyotish heuristics. Identify any overreach or inconsistencies and provide refinements. Output ONLY strict JSON:\n{"score":0.0-1.0,"issues":["..."],"refinements":["..."],"rewrite_guidance":"..."}\n`;
+  const verifyResp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      messages: [
+        { role: 'system', content: 'You are a strict verifier. Output ONLY JSON.' },
+        { role: 'user', content: verifierPrompt }
+      ]
+    })
+  });
+  if (!verifyResp.ok) return err('openai_failed', 502);
+  const verifyData = await verifyResp.json() as any;
+  let verifyText = verifyData?.choices?.[0]?.message?.content || '{}';
 
   const streamBody = new ReadableStream({
     async start(controller) {
@@ -626,9 +645,41 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       sendTrace('Checking required vargas (D1, D9, D10, D4, D7)');
       if (refExcerpt) sendTrace('BV Raman excerpt loaded');
       if (paraExcerpt) sendTrace('Parasara excerpt loaded');
-      sendTrace('Requesting BV/P principle extraction');
-      sendTrace('Generating report draft');
+      sendTrace('Draft pass (BV Raman + Parasara)');
+      sendTrace('Verification pass (Parasara + BV + general heuristics)');
+      let score = 0;
+      let refinements: string[] = [];
+      try {
+        const parsed = JSON.parse(verifyText);
+        score = typeof parsed.score === 'number' ? parsed.score : 0;
+        refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
+        if (parsed.issues && parsed.issues.length) {
+          sendTrace(`Issues found: ${parsed.issues.length}`);
+        }
+      } catch {}
+      sendTrace(`Consistency score: ${score.toFixed(2)}`);
+      sendTrace('Applying refinements');
 
+      const finalPrompt = `${user}\n\nApply these refinements (if any):\n${refinements.join('\n') || 'None'}\n\nRewrite the report accordingly.`;
+      const sr = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0.15,
+          stream: true,
+          messages: [
+            { role: 'system', content: sys },
+            { role: 'user', content: finalPrompt }
+          ]
+        })
+      });
+      if (!sr.ok || !sr.body) {
+        sendTrace('Streaming failed; returning draft');
+        send('done', { text: draftText, rationale: [], trace });
+        controller.close();
+        return;
+      }
       const reader = sr.body!.getReader();
       let buffer = '';
       let fullText = '';
