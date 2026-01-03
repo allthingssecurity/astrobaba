@@ -902,6 +902,10 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
       };
       try {
         sendTrace('Agent started');
+        try {
+          const intentCharts = detectIntentCharts(message);
+          sendTrace(`Intent detected: ${intentCharts.map(c => c.toUpperCase()).join(', ')}`);
+        } catch {}
         // Re-run the loop to emit live trace
         let localCtx = ctx;
         let localUsed = usedCharts.slice();
@@ -910,6 +914,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         for (let i = 0; i < maxIterations; i++) {
           const need = Array.from(new Set([...localUsed, ...localRequested]));
           sendTrace(`Iteration ${i + 1}: intent charts ${need.map(c => c.toUpperCase()).join(', ') || 'none'}`);
+          sendTrace('Checking chart availability');
           const before = availableCharts(localCtx);
           if (localCtx) {
             try { localCtx = await ensureDivisionalCharts(env, (localCtx as any).compute || localCtx, need); } catch {}
@@ -918,6 +923,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
           const newly = after.filter(c => !before.includes(c));
           for (const c of newly) localAdded.add(c);
           if (newly.length) sendTrace(`Fetched charts: ${newly.map(c => c.toUpperCase()).join(', ')}`);
+          sendTrace('Synthesizing signals from D1 + relevant vargas');
           const built = buildContext(localCtx || {});
           const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
           const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
