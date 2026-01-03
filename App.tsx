@@ -343,20 +343,55 @@ const App: React.FC = () => {
       .trim();
   };
 
-  const downloadAnalysisPdf = () => {
+  const downloadAnalysisPdf = async () => {
     if (pdfBusy) return;
     const entries = chatHistory.filter((m) => m.text && m.text.trim());
     if (entries.length === 0) return;
     setPdfBusy(true);
     try {
+      let useHindiFont = false;
+      if (language === 'hi') {
+        try {
+          const resp = await fetch('/NotoSansDevanagari-Regular.ttf');
+          if (resp.ok) {
+            const buf = await resp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            const base64 = btoa(binary);
+            jsPDF.API.addFileToVFS('NotoSansDevanagari-Regular.ttf', base64);
+            jsPDF.API.addFont('NotoSansDevanagari-Regular.ttf', 'NotoSansDevanagari', 'normal');
+            useHindiFont = true;
+          }
+        } catch {
+          useHindiFont = false;
+        }
+        if (!useHindiFont) {
+          const printWin = window.open('', '_blank');
+          if (printWin) {
+            const bodyHtml = entries.map((e) => {
+              const label = e.role === 'user' ? 'User' : 'AstroBaba';
+              const text = toPlainText(e.text).replace(/\n/g, '<br/>');
+              return `<h3>${label}</h3><div>${text}</div><hr/>`;
+            }).join('');
+            printWin.document.write(`<html><head><title>AstroBaba Analysis</title></head><body style="font-family: Noto Sans, sans-serif; padding: 24px;">${bodyHtml}</body></html>`);
+            printWin.document.close();
+            printWin.focus();
+            printWin.print();
+          } else {
+            alert('Hindi PDF requires font file at public/NotoSansDevanagari-Regular.ttf.');
+          }
+          return;
+        }
+      }
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const margin = 40;
       const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
       const title = 'AstroBaba Analysis';
-      doc.setFont('helvetica', 'bold');
+      doc.setFont(useHindiFont ? 'NotoSansDevanagari' : 'helvetica', 'bold');
       doc.setFontSize(16);
       doc.text(title, margin, 50);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont(useHindiFont ? 'NotoSansDevanagari' : 'helvetica', 'normal');
       doc.setFontSize(11);
       let y = 80;
       const lineHeight = 14;

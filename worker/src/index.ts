@@ -949,7 +949,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
     return json({ reply: `I will keep it practical and chart-grounded. ${message}`, used_charts: usedCharts, trace });
   }
 
-  const callOpenAI = async (userPrompt: string, streamMode: boolean, responseFormat?: any) => {
+  const callOpenAI = async (userPrompt: string, streamMode: boolean, responseFormat?: any, systemOverride?: string) => {
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
@@ -959,7 +959,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         stream: streamMode,
         ...(responseFormat ? { response_format: responseFormat } : {}),
         messages: [
-          { role: 'system', content: sys },
+          { role: 'system', content: systemOverride || sys },
           { role: 'user', content: userPrompt }
         ]
       })
@@ -1134,7 +1134,8 @@ ${iyerText}
 
 Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
 {"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
-        const compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' });
+        const compareSystem = 'You are a strict JSON generator. Output only a valid JSON object. Scores must be between 0.3 and 0.95.';
+        let compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
         let refinements: string[] = [];
         let consensus: string[] = [];
         let divergences: string[] = [];
@@ -1166,6 +1167,30 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
           } catch {
             scores = { bv: 0.5, parasara: 0.5, iyer: 0.5 };
             sendTrace('Comparison parse failed; using neutral scores');
+          }
+        }
+        if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0) {
+          sendTrace('Scores missing; retrying comparison');
+          compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
+          if (compareResp.ok) {
+            const compareData = await compareResp.json() as any;
+            const compareText = compareData?.choices?.[0]?.message?.content || '{}';
+            try {
+              const parsed = JSON.parse(compareText);
+              if (parsed?.scores) {
+                scores = {
+                  bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : 0.6,
+                  parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : 0.6,
+                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : 0.6
+                };
+              } else {
+                scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+              }
+            } catch {
+              scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
+            }
+          } else {
+            scores = { bv: 0.6, parasara: 0.6, iyer: 0.6 };
           }
         }
         if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0) {
