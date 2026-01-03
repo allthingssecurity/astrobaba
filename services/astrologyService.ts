@@ -143,11 +143,11 @@ export const analyzeWithBackend = async (compute: any, question?: string): Promi
   return data.analysis as string;
 };
 
-export const analyzeWithLLM = async (compute: any): Promise<{ text: string; rationale: any[]; trace?: string[] } > => {
+export const analyzeWithLLM = async (compute: any, language: 'en' | 'hi' = 'en'): Promise<{ text: string; rationale: any[]; trace?: string[] } > => {
   const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ compute })
+    body: JSON.stringify({ compute, language })
   });
   if (!resp.ok) throw new Error('Analyze LLM failed');
   const data = await resp.json();
@@ -158,12 +158,13 @@ export const analyzeWithLLMStream = async (
   compute: any,
   onDelta: (chunk: string) => void,
   onDone: (payload: { text?: string; rationale?: any[]; trace?: string[] }) => void,
-  onTrace?: (message: string) => void
+  onTrace?: (message: string) => void,
+  language: 'en' | 'hi' = 'en'
 ): Promise<void> => {
   const resp = await fetch(`${API_BASE}/api/analyze-llm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ compute, stream: true })
+    body: JSON.stringify({ compute, stream: true, language })
   });
   if (!resp.ok) throw new Error('Analyze LLM stream failed');
   const contentType = resp.headers.get('content-type') || '';
@@ -218,12 +219,13 @@ export const chatWithBackend = async (
   sessionId: string,
   message: string,
   context?: any,
-  maxIterations: number = 3
+  maxIterations: number = 3,
+  language: 'en' | 'hi' = 'en'
 ): Promise<{ reply: string; used_charts?: string[]; trace?: string[]; refinement?: string }> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations })
+    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations, language })
   });
   if (!resp.ok) throw new Error('Chat failed');
   const data = await resp.json();
@@ -242,12 +244,13 @@ export const chatWithBackendStream = async (
   maxIterations: number,
   onDelta: (chunk: string) => void,
   onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void,
-  onTrace?: (message: string) => void
+  onTrace?: (message: string) => void,
+  language: 'en' | 'hi' = 'en'
 ): Promise<void> => {
   const resp = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations, stream: true })
+    body: JSON.stringify({ session_id: sessionId, message, context, max_iterations: maxIterations, stream: true, language })
   });
   if (!resp.ok || !resp.body) throw new Error('Chat stream failed');
   const reader = resp.body.getReader();

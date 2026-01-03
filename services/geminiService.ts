@@ -14,10 +14,11 @@ export const chatWithAstrologer = async (
   sessionId: string,
   message: string,
   computeBundle?: ComputeBundle | any,
-  maxIterations: number = 3
+  maxIterations: number = 3,
+  language: 'en' | 'hi' = 'en'
 ): Promise<{ reply: string; used_charts?: string[]; trace?: string[]; refinement?: string }> => {
   const context = computeBundle?.compute || undefined;
-  return chatWithBackend(sessionId, message, context, maxIterations);
+  return chatWithBackend(sessionId, message, context, maxIterations, language);
 };
 
 export const chatWithAstrologerStream = async (
@@ -27,8 +28,9 @@ export const chatWithAstrologerStream = async (
   maxIterations: number,
   onDelta: (chunk: string) => void,
   onDone: (payload: { used_charts?: string[]; trace?: string[]; refinement?: string }) => void,
-  onTrace?: (message: string) => void
+  onTrace?: (message: string) => void,
+  language: 'en' | 'hi' = 'en'
 ): Promise<void> => {
   const context = computeBundle?.compute || undefined;
-  return chatWithBackendStream(sessionId, message, context, maxIterations, onDelta, onDone, onTrace);
+  return chatWithBackendStream(sessionId, message, context, maxIterations, onDelta, onDone, onTrace, language);
 };

@@ -195,7 +195,8 @@ const App: React.FC = () => {
               setAnalysisTrace(payload?.trace || []);
               if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
             },
-            (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]))
+            (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg])),
+            language
           );
         }
       } catch {
@@ -256,11 +257,12 @@ const App: React.FC = () => {
         ,
         (msg) => {
           setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]));
-        }
+        },
+        language
       );
     } catch (e) {
       // Fallback to non-stream if SSE fails
-      const response = await chatWithAstrologer('default-session', question, computeBundle || undefined, 5);
+      const response = await chatWithAstrologer('default-session', question, computeBundle || undefined, 5, language);
       setChatHistory([...newHistory, { role: 'model', text: response.reply, usedCharts: response.used_charts, trace: response.trace, refinement: response.refinement }]);
       if (response.trace && response.trace.length > 0) setAnalysisTrace(response.trace);
     } finally {
@@ -785,7 +787,8 @@ const App: React.FC = () => {
                                setAnalysisTrace(payload?.trace || []);
                                if (payload?.rationale && payload.rationale.length > 0) setRationale(payload.rationale);
                              },
-                             (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg]))
+                             (msg) => setAnalysisTrace((prev) => (prev[prev.length - 1] === msg ? prev : [...prev, msg])),
+                             language
                            );
                          } catch (e) {
                            alert('Could not generate detailed analysis.');

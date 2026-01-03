@@ -474,6 +474,7 @@ function buildFacts(compute: any) {
 async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   const body = await req.json() as any;
   let { compute } = body || {};
+  const lang = body?.language || compute?.meta?.language || compute?.meta?.birth?.la || 'en';
   // Ensure key vargas are present; enrich if missing
   try {
     const birth = compute?.meta?.birth;
@@ -560,8 +561,9 @@ Citation sources (BV Raman + Parasara + Seshadri Iyer):
 - Use citations implicitly; do NOT include any code markers in the visible report text.
 - Close with a References section listing BV Raman, Parasara, and Seshadri Iyer quotes with attribution. Do NOT invent page numbers.
 - Never cite if an item was not actually used.`;
+  const langNote = lang === 'hi' ? 'Write the report in Hindi.' : 'Write the report in English.';
   const constraints = `Lock these timings if present: Mahadasha=${md || 'n/a'}${mdEnd?` (ends ${mdEnd.split('T')[0]})`:''}${ad?`; Antardasha=${ad}${adEnd?` (ends ${adEnd.split('T')[0]})`:''}`:''}`;
-  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases):\n\n${paraExcerpt}\n\nSeshadri Iyer excerpt (extract 4–6 techniques with quoted phrases):\n\n${iyerExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
+  const user = `Facts JSON:\n\n${JSON.stringify(facts)}\n\n${constraints}\n\n${langNote}\n\nBV Raman excerpt (extract 5–8 best practices with quoted phrases):\n\n${refExcerpt}\n\nParasara excerpt (extract 4–6 core principles with quoted phrases):\n\n${paraExcerpt}\n\nSeshadri Iyer excerpt (extract 4–6 techniques with quoted phrases):\n\n${iyerExcerpt}\n\nTask: Produce a professional client report with these sections, EXACTLY in this order and with headings spelled exactly as below. STRICT OUTPUT REQUIREMENTS:
 - Every bullet must contain a "Signal:" clause with at least two placements (e.g., "Signal: D1 Mars in H8 Scorpio; D10 Saturn in H10 Capricorn").
 - Every bullet must contain a "Reason:" clause grounded in BV Raman or Parasara principles (plain language, no codes).
 - Every bullet must contain a "Outcome:" clause specific to the topic.
@@ -911,6 +913,8 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   const message = body?.message || '';
   let ctx = body?.context || null;
   if (!message) return err('message required', 400);
+  const lang = body?.language || ctx?.meta?.language || ctx?.meta?.birth?.la || 'en';
+  const langNote = lang === 'hi' ? 'Respond in Hindi.' : 'Respond in English.';
 
   // Optional excerpts for verification in chat loop
   let refExcerpt = '';
@@ -976,7 +980,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
 
     const built = buildContext(ctx || {});
     const constraints = built.mdName ? `Lock these timings: Mahadasha=${built.mdName}${built.mdEnd?` (ends ${built.mdEnd})`:''}${built.adName?`; Antardasha=${built.adName}${built.adEnd?` (ends ${built.adEnd})`:''}`:''}` : '';
-    const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}Question: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
+    const userPrompt = `${built.text ? built.text + '\n\n' : ''}${constraints ? constraints + '\n' : ''}${langNote}\nQuestion: ${message}\nIf more charts are needed, append a single line: NEXT_CHARTS: D7,D9. Otherwise append: NEXT_CHARTS: none.`;
 
     const r = await callOpenAI(userPrompt, false);
     if (!r.ok) return err('openai_failed', 502);
@@ -1085,7 +1089,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
-        const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}Question: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
+        const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         const bvPrompt = `${streamPrompt}
 Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Signal/Reason/Outcome per bullet.`;
         const paraPrompt = `${streamPrompt}
