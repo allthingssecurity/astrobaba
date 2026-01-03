@@ -330,8 +330,12 @@ const App: React.FC = () => {
     return map[ct] || ct.toUpperCase();
   };
 
+  const stripEvidenceLines = (md: string): string => {
+    return md.replace(/^\s*Evidence:.*$/gm, '');
+  };
+
   const toPlainText = (md: string): string => {
-    return md
+    return stripEvidenceLines(md)
       .replace(/```[\s\S]*?```/g, '')
       .replace(/#+\s?/g, '')
       .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -872,7 +876,11 @@ const App: React.FC = () => {
                       }`}>
                         {msg.role === 'model' ? (
                           <div className="prose prose-invert prose-sm max-w-none prose-headings:text-amber-200 prose-headings:font-serif prose-strong:text-amber-100 prose-a:text-purple-300">
-                            <ReactMarkdown>{msg.text.replace(/\[(BV|P)\d+\]/g, '')}</ReactMarkdown>
+                            {(() => {
+                              const clean = msg.text.replace(/\[(BV|P)\d+\]/g, '');
+                              const rendered = showSources ? clean : stripEvidenceLines(clean);
+                              return <ReactMarkdown>{rendered}</ReactMarkdown>;
+                            })()}
                             {msg.refinement && (
                               <div className="mt-3 text-[10px] text-slate-400">
                                 {msg.refinement}
