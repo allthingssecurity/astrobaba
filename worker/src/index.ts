@@ -396,7 +396,7 @@ async function handleAnalyze(req: Request): Promise<Response> {
   }
   // Short narrative
   const narrative: string[] = [];
-  narrative.push('\n## Your Story (Plain Language)');
+  narrative.push('\n## Your Story (Simple Language)');
   if (ascSign) narrative.push(`You come across with rising sign ${ascSign}. This is a practical reading based on your actual placements.`);
   if (byHouse[8]?.find(x=>x.planet==='Mars')) narrative.push('- You handle intensity well. Mars in the 8th points to resilience; channel it into deep work.');
   if (byHouse[2]?.find(x=>x.planet==='Saturn')) narrative.push('- Finances and speech benefit from patience. Keep words precise in important matters.');
@@ -596,7 +596,7 @@ Citation sources (BV Raman + Parasara + Seshadri Iyer + Horary):
 - Every bullet must start with a single, layperson sentence (no labels).
 - Every bullet must include an "Evidence:" line citing at least two placements (e.g., "Evidence: D1 Mars in H8 Scorpio; D10 Saturn in H10 Capricorn").
 - Do NOT use technical labels like Signal/Reason/Outcome in the visible text.
-- If you cannot cite two placements, write a simple sentence "not in data" and still include Evidence: not in data.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include a layperson sentence followed by an Evidence line.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### Techniques (Seshadri Iyer)\n- 4–6 items with short quotes + paraphrase.\n\n### Horary Procedures (Practical Horary Astrology)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Plain + Evidence. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include a layperson sentence + Evidence with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include a layperson sentence + Evidence with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include a layperson sentence + Evidence with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include a layperson sentence + Evidence with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include a layperson sentence + Evidence and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n- Seshadri Iyer quotes + attribution line.\n- Practical Horary Astrology quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
+- If you cannot cite two placements, write a simple sentence "not in data" and still include Evidence: not in data.\n\n### Actionable Summary\n- 3–5 bullets tied to current MD/AD; include one immediate step per bullet. Each bullet must include a layperson sentence followed by an Evidence line.\n\n### Best Practices (BV Raman)\n- 5–8 items with short quotes + paraphrase.\n\n### Core Principles (Parasara)\n- 4–6 items with short quotes + paraphrase.\n\n### Techniques (Seshadri Iyer)\n- 4–6 items with short quotes + paraphrase.\n\n### Horary Procedures (Practical Horary Astrology)\n- 4–6 items with short quotes + paraphrase.\n\n### House‑by‑House\n- For houses 1..12: 3 bullets each → Key signal, Practical meaning, One action. Each bullet MUST include Insight + Evidence. Do NOT include BV/P markers in the visible text.\n\n### Career (D10)\n- Use D10 facts only. Each bullet must include a layperson sentence + Evidence with at least two D10 placements.\n\n### Relationships (D9)\n- Use D9 facts only. Each bullet must include a layperson sentence + Evidence with at least two D9 placements.\n\n### Assets (D4)\n- Use D4 facts only. Each bullet must include a layperson sentence + Evidence with at least two D4 placements.\n\n### Children (D7)\n- Use D7 facts only. Each bullet must include a layperson sentence + Evidence with at least two D7 placements.\n\n### Timing Now (MD/AD locked)\n- 2–4 bullets with clear, dated guidance (MD/AD). Each bullet must include a layperson sentence + Evidence and cite the MD/AD window explicitly.\n\n### References\n- BV Raman quotes + attribution line.\n- Parasara quotes + attribution line.\n- Seshadri Iyer quotes + attribution line.\n- Practical Horary Astrology quotes + attribution line.\n\nAfter the report, output a fenced JSON code block containing a machine‑readable rationale with this shape:
 
 ${"```json"}
 { "rationale": [ { "section": "House 8"|"Career"|..., "house": 8|null, "bullet": "text of bullet", "chart_evidence": ["D1: Mars in Vrischika H8", ...], "bv_ids": ["BV3", "BV5"], "reasoning": "why BV applies to this evidence" } ] }
@@ -802,7 +802,7 @@ function detectIntentCharts(message: string): string[] {
 
 function needsTransits(message: string): boolean {
   const m = message.toLowerCase();
-  return /auspicious|muhurta|shubh|good day|favorable day|auspicion|timing|today|this week|this month/.test(m);
+  return /auspicious|muhurta|shubh|good day|favorable day|auspicion|timing|today|now|current|currently|present|this week|this month|next week|next month|this year|next year|when should|best time|date for|aaj|abhi|vartaman|iske baad|is saal|agla saal|kab/.test(m);
 }
 
 async function ensureTransits(env: Env, compute: any): Promise<any> {
@@ -829,8 +829,10 @@ function parseNextCharts(text: string): string[] {
   const match = text.match(/^\s*NEXT_CHARTS:\s*(.+)\s*$/im);
   if (!match) return [];
   const raw = match[1].trim();
-  if (!raw || raw.toLowerCase() === 'none') return [];
-  return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).map((s) => {
+  if (!raw) return [];
+  const cleaned = raw.replace(/[^a-zA-Z0-9, ]/g, ' ').trim().toLowerCase();
+  if (!cleaned || cleaned === 'none') return [];
+  return cleaned.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).filter(s => s !== 'none').map((s) => {
     if (s === 'd1' || s === 'lagna') return 'lagna';
     if (s === 'd9' || s === 'navamsa') return 'navamsa';
     if (s === 'd10' || s === 'dasamsa') return 'dasamsa';
@@ -1129,16 +1131,16 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         const bvPrompt = `${streamPrompt}
 ${langNote}
-Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Plain + Evidence per bullet.`;
+Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Insight + Evidence per bullet.`;
         const paraPrompt = `${streamPrompt}
 ${langNote}
-Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Plain + Evidence per bullet.`;
+Framework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Insight + Evidence per bullet.`;
         const iyerPrompt = `${streamPrompt}
 ${langNote}
-Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Plain + Evidence per bullet.`;
+Framework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Insight + Evidence per bullet.`;
         const horaryPrompt = `${streamPrompt}
 ${langNote}
-Framework: Practical Horary Astrology (question-first procedures). Use only chart context. Format with Plain + Evidence per bullet.`;
+Framework: Practical Horary Astrology (question-first procedures). Use only chart context. Format with Insight + Evidence per bullet.`;
 
         sendTrace('Draft pass: BV Raman');
         const bvResp = await callOpenAI(bvPrompt, false);
@@ -1164,7 +1166,7 @@ Framework: Practical Horary Astrology (question-first procedures). Use only char
         const horaryData = await horaryResp.json() as any;
         const horaryText = horaryData?.choices?.[0]?.message?.content || 'No answer';
 
-        sendTrace('Cross-verification across 3 drafts');
+        sendTrace('Cross-verification across 4 drafts');
         const comparePrompt = `Context:
 ${builtFinal.text || ''}
 
@@ -1177,8 +1179,11 @@ ${paraText}
 Draft Seshadri Iyer:
 ${iyerText}
 
+Draft Horary:
+${horaryText}
+
 Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
-{"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
+{"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0,"horary":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
         const compareSystem = 'You are a strict JSON generator. Output only a valid JSON object. Scores must be between 0.3 and 0.95.';
         let compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
         let refinements: string[] = [];
@@ -1201,20 +1206,24 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
               refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
               consensus = Array.isArray(parsed.consensus) ? parsed.consensus : [];
               divergences = Array.isArray(parsed.divergences) ? parsed.divergences : [];
-              if (parsed.scores) {
-                scores = {
-                  bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : scores.bv,
-                  parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : scores.parasara,
-                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer,
-                  horary: typeof parsed.scores.horary === 'number' ? parsed.scores.horary : scores.horary
-                };
-              }
+            if (parsed.scores) {
+              scores = {
+                bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : scores.bv,
+                parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : scores.parasara,
+                iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer,
+                horary: typeof parsed.scores.horary === 'number' ? parsed.scores.horary : scores.horary
+              };
             }
-          } catch {
-            scores = { bv: 0.5, parasara: 0.5, iyer: 0.5, horary: 0.5 };
-            sendTrace('Comparison parse failed; using neutral scores');
           }
+        } catch {
+          scores = { bv: 0.5, parasara: 0.5, iyer: 0.5, horary: 0.5 };
+          sendTrace('Comparison parse failed; using neutral scores');
         }
+      }
+      if (scores.horary === 0) {
+        scores.horary = Math.max(0.3, Math.min(0.95, (scores.bv + scores.parasara + scores.iyer) / 3));
+        sendTrace('Horary score missing; using consensus average');
+      }
         if (scores.bv === 0 && scores.parasara === 0 && scores.iyer === 0 && scores.horary === 0) {
           sendTrace('Scores missing; retrying comparison');
           compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
@@ -1227,7 +1236,8 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
                 scores = {
                   bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : 0.6,
                   parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : 0.6,
-                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : 0.6
+                  iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : 0.6,
+                  horary: typeof parsed.scores.horary === 'number' ? parsed.scores.horary : 0.6
                 };
               } else {
                 scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6 };
