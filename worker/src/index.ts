@@ -1310,6 +1310,7 @@ Write the final answer. Explicitly mention if all three concur or if there are d
         if (!sr.ok || !sr.body) throw new Error('openai_failed');
         const reader = sr.body.getReader();
         let buffer = '';
+        let streamedText = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -1321,7 +1322,7 @@ Write the final answer. Explicitly mention if all three concur or if there are d
             if (!line.startsWith('data:')) continue;
             const data = line.replace(/^data:\s*/, '');
             if (data === '[DONE]') {
-              send('done', { used_charts: finalUsed, trace, refinement });
+              send('done', { text: streamedText || finalText || lastResponse || 'No answer', used_charts: finalUsed, trace, refinement });
               controller.close();
               return;
             }
@@ -1329,16 +1330,17 @@ Write the final answer. Explicitly mention if all three concur or if there are d
               const parsed = JSON.parse(data);
               const delta = parsed?.choices?.[0]?.delta?.content;
               if (delta) {
+                streamedText += delta;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`));
               }
             } catch {}
           }
         }
-        send('done', { used_charts: finalUsed, trace, refinement });
+        send('done', { text: streamedText || finalText || lastResponse || 'No answer', used_charts: finalUsed, trace, refinement });
         controller.close();
       } catch {
         send('trace', { text: 'Streaming failed; returning fallback response.' });
-        send('done', { used_charts: usedCharts, trace, refinement: '' });
+        send('done', { text: finalText || lastResponse || 'No answer', used_charts: usedCharts, trace, refinement: '' });
         controller.close();
       }
     }

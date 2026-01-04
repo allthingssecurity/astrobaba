@@ -245,6 +245,7 @@ const App: React.FC = () => {
             if (idx >= 0 && next[idx].role === 'model') {
               next[idx] = {
                 ...next[idx],
+                text: next[idx].text || payload.text || '',
                 usedCharts: payload.used_charts,
                 trace: payload.trace,
                 refinement: payload.refinement
