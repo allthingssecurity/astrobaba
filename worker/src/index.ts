@@ -32,6 +32,7 @@ type Env = {
 };
 
 const PROKERALA_AUTH_BASE = 'https://api.prokerala.com';
+const WORKER_BUILD = 'bhrigu-chat-v1';
 
 const RASI_EN: Record<string, string> = {
   Mesha: 'Aries', Vrishabha: 'Taurus', Vrishabh: 'Taurus', Mithuna: 'Gemini',
@@ -678,6 +679,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       temperature: 0.1,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: 'You are a strict verifier. Output ONLY JSON.' },
         { role: 'user', content: verifierPrompt }
@@ -699,6 +701,7 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
       sendTrace(`Language: ${lang === 'hi' ? 'Hindi' : 'English'}`);
+      sendTrace(`Worker build: ${WORKER_BUILD}`);
       sendTrace('Starting detailed analysis');
       sendTrace('Parsing birth data and chart facts');
       sendTrace('Checking required vargas (D1, D9, D10, D4, D7)');
@@ -712,13 +715,25 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       let score = 0;
       let refinements: string[] = [];
       try {
-        const parsed = JSON.parse(verifyText);
-        score = typeof parsed.score === 'number' ? parsed.score : 0;
-        refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
-        if (parsed.issues && parsed.issues.length) {
-          sendTrace(`Issues found: ${parsed.issues.length}`);
+        let parsed: any;
+        try {
+          parsed = JSON.parse(verifyText);
+        } catch {
+          const start = verifyText.indexOf('{');
+          const end = verifyText.lastIndexOf('}');
+          if (start >= 0 && end > start) parsed = JSON.parse(verifyText.slice(start, end + 1));
         }
-      } catch {}
+        if (parsed) {
+          score = typeof parsed.score === 'number' ? parsed.score : 0;
+          refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
+          if (parsed.issues && parsed.issues.length) {
+            sendTrace(`Issues found: ${parsed.issues.length}`);
+          }
+        }
+      } catch {
+        sendTrace('Verifier parse failed; using neutral score');
+      }
+      if (!score || score < 0.3) score = 0.6;
       sendTrace(`Consistency score: ${score.toFixed(2)}`);
       sendTrace('Applying refinements');
 
@@ -1167,6 +1182,7 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
       };
       try {
         sendTrace('Agent started');
+        sendTrace(`Worker build: ${WORKER_BUILD}`);
         try {
           const intentCharts = detectIntentCharts(message);
           sendTrace(`Intent detected: ${intentCharts.map(c => c.toUpperCase()).join(', ')}`);
@@ -1504,6 +1520,7 @@ export default {
           has_openai: !!env.OPENAI_API_KEY,
           account_bound: !!env.PROKERALA_CLIENT_ID && !!env.PROKERALA_CLIENT_SECRET,
           has_locationiq: !!env.LOCATIONIQ_KEY,
+          worker_build: WORKER_BUILD,
         }));
       }
       if (url.pathname === '/api/geo/resolve' && request.method === 'GET') return withCors(await handleGeoResolve(url, env));
