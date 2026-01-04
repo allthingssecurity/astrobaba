@@ -540,7 +540,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     if (r.ok) {
       const t = await r.text();
       // Limit to avoid token overflow (tight, focused excerpt)
-      refExcerpt = t.slice(0, 12000);
+      refExcerpt = t.slice(0, 8000);
       trace.push('Loaded BV Raman excerpt');
     }
   } catch {}
@@ -549,7 +549,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     const r2 = await fetch(bookUrl2);
     if (r2.ok) {
       const t2 = await r2.text();
-      paraExcerpt = t2.slice(0, 12000);
+      paraExcerpt = t2.slice(0, 8000);
       trace.push('Loaded Parasara excerpt');
     }
   } catch {}
@@ -558,7 +558,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     const r3 = await fetch(bookUrl3);
     if (r3.ok) {
       const t3 = await r3.text();
-      iyerExcerpt = t3.slice(0, 12000);
+      iyerExcerpt = t3.slice(0, 8000);
       trace.push('Loaded Seshadri Iyer excerpt');
     }
   } catch {}
@@ -567,7 +567,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     const r4 = await fetch(bookUrl4);
     if (r4.ok) {
       const t4 = await r4.text();
-      horaryExcerpt = t4.slice(0, 12000);
+      horaryExcerpt = t4.slice(0, 8000);
       trace.push('Loaded Horary excerpt');
     }
   } catch {}
@@ -576,7 +576,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
     const r5 = await fetch(bookUrl5);
     if (r5.ok) {
       const t5 = await r5.text();
-      bhriguExcerpt = t5.slice(0, 12000);
+      bhriguExcerpt = t5.slice(0, 8000);
       trace.push('Loaded Bhrigu Samhita excerpt');
     }
   } catch {}
@@ -984,24 +984,24 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   let horaryExcerpt = '';
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/astro_book.txt');
-    if (r.ok) refExcerpt = (await r.text()).slice(0, 6000);
+    if (r.ok) refExcerpt = (await r.text()).slice(0, 3000);
   } catch {}
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/parasara_book.txt');
-    if (r.ok) paraExcerpt = (await r.text()).slice(0, 6000);
+    if (r.ok) paraExcerpt = (await r.text()).slice(0, 3000);
   } catch {}
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/iyer_book.txt');
-    if (r.ok) iyerExcerpt = (await r.text()).slice(0, 6000);
+    if (r.ok) iyerExcerpt = (await r.text()).slice(0, 3000);
   } catch {}
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/horary_book.txt');
-    if (r.ok) horaryExcerpt = (await r.text()).slice(0, 6000);
+    if (r.ok) horaryExcerpt = (await r.text()).slice(0, 3000);
   } catch {}
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/bhrigu_book.txt');
     bhriguFetchStatus = r.status;
-    if (r.ok) bhriguExcerpt = (await r.text()).slice(0, 6000);
+    if (r.ok) bhriguExcerpt = (await r.text()).slice(0, 3000);
   } catch {}
 
   const sys = 'You are a precise Vedic astrologer following BPHS. Use only provided placements and timing FROM THE CONTEXT. Never contradict the given Vimshottari Mahadasha/Antardasha names or dates. If MD/AD are not provided, say you cannot confirm them. Be concise, clear, and kind. No fabricated yogas; no changing lagna, timezone, ayanamsa, or dasha start. Life-stage grounding: infer present age from birth date. For lifecycle topics (marriage/children/career), first assess D1 + relevant varga signals (D9/D7/D10) and only then mention MD/AD timing as a secondary lens. Do not lead with dasha. Combine age + chart signals + MD/AD to state whether the event likely already occurred or is still upcoming. Use cautious phrasing ("likely", "often", "could have") and avoid future-only "prospects" language if age indicates it likely already happened. If the question is ambiguous or missing timeframe, ask 1–2 clarifying questions before answering.';
@@ -1252,6 +1252,7 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
         const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
+        sendTrace('Starting cross-verification drafts');
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
         sendTrace('Preparing draft passes');
         const bvPrompt = `${streamPrompt}
