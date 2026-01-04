@@ -1061,7 +1061,95 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   const refinement = addedCharts.size ? `Refined with additional charts: ${Array.from(addedCharts).map(c => c.toUpperCase()).join(', ')}.` : '';
   const finalUsed = Array.from(new Set([...usedCharts, ...requestedCharts, ...Array.from(addedCharts)]));
   if (!stream) {
-    return json({ reply: finalText || lastResponse, used_charts: finalUsed, trace, refinement });
+    trace.push('Draft passes in parallel (BV/Parasara/Iyer/Horary/Bhrigu)');
+    const builtFinal = buildContext(ctx || {});
+    const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
+    const basePrompt = `${builtFinal.text ? builtFinal.text + '\n\n' : ''}${constraintsFinal ? constraintsFinal + '\n' : ''}${langNote}\nQuestion: ${message}\nAnswer directly. Do NOT include NEXT_CHARTS.`;
+    const bvPrompt = `${basePrompt}\n${langNote}\nFramework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Insight + Evidence per bullet.`;
+    const paraPrompt = `${basePrompt}\n${langNote}\nFramework: Brihat Parasara Hora Sastra (core principles). Use only chart context. Format with Insight + Evidence per bullet.`;
+    const iyerPrompt = `${basePrompt}\n${langNote}\nFramework: Seshadri Iyer (techniques of prediction). Use only chart context. Format with Insight + Evidence per bullet.`;
+    const horaryPrompt = `${basePrompt}\n${langNote}\nFramework: Practical Horary Astrology (question-first procedures). Use only chart context. Format with Insight + Evidence per bullet.`;
+    const bhriguPrompt = `${basePrompt}\n${langNote}\nFramework: Bhrigu Samhita (traditional life-scope patterns). Use only chart context. Format with Insight + Evidence per bullet.`;
+
+    const [bvResp, paraResp, iyerResp, horaryResp, bhriguResp] = await Promise.all([
+      callOpenAI(bvPrompt, false),
+      callOpenAI(paraPrompt, false),
+      callOpenAI(iyerPrompt, false),
+      callOpenAI(horaryPrompt, false),
+      callOpenAI(bhriguPrompt, false)
+    ]);
+    if (!bvResp.ok || !paraResp.ok || !iyerResp.ok || !horaryResp.ok || !bhriguResp.ok) return err('openai_failed', 502);
+    const bvText = (await bvResp.json() as any)?.choices?.[0]?.message?.content || 'No answer';
+    const paraText = (await paraResp.json() as any)?.choices?.[0]?.message?.content || 'No answer';
+    const iyerText = (await iyerResp.json() as any)?.choices?.[0]?.message?.content || 'No answer';
+    const horaryText = (await horaryResp.json() as any)?.choices?.[0]?.message?.content || 'No answer';
+    const bhriguText = (await bhriguResp.json() as any)?.choices?.[0]?.message?.content || 'No answer';
+
+    trace.push('Cross-verification across 5 drafts');
+    const comparePrompt = `Context:
+${builtFinal.text || ''}
+
+Draft BV Raman:
+${bvText}
+
+Draft Parasara:
+${paraText}
+
+Draft Seshadri Iyer:
+${iyerText}
+
+Draft Horary:
+${horaryText}
+
+Draft Bhrigu Samhita:
+${bhriguText}
+
+Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
+{"scores":{"bv":0.0,"parasara":0.0,"iyer":0.0,"horary":0.0,"bhrigu":0.0},"consensus":["..."],"divergences":["..."],"refinements":["..."]}`;
+    const compareSystem = 'You are a strict JSON generator. Output only a valid JSON object. Scores must be between 0.3 and 0.95.';
+    const compareResp = await callOpenAI(comparePrompt, false, { type: 'json_object' }, compareSystem);
+    let refinements: string[] = [];
+    let consensus: string[] = [];
+    let divergences: string[] = [];
+    let scores = { bv: 0.6, parasara: 0.6, iyer: 0.6, horary: 0.6, bhrigu: 0.6 };
+    if (compareResp.ok) {
+      const compareData = await compareResp.json() as any;
+      const compareText = compareData?.choices?.[0]?.message?.content || '{}';
+      try {
+        let parsed: any;
+        try {
+          parsed = JSON.parse(compareText);
+        } catch {
+          const start = compareText.indexOf('{');
+          const end = compareText.lastIndexOf('}');
+          if (start >= 0 && end > start) parsed = JSON.parse(compareText.slice(start, end + 1));
+        }
+        if (parsed) {
+          refinements = Array.isArray(parsed.refinements) ? parsed.refinements : [];
+          consensus = Array.isArray(parsed.consensus) ? parsed.consensus : [];
+          divergences = Array.isArray(parsed.divergences) ? parsed.divergences : [];
+          if (parsed.scores) {
+            scores = {
+              bv: typeof parsed.scores.bv === 'number' ? parsed.scores.bv : scores.bv,
+              parasara: typeof parsed.scores.parasara === 'number' ? parsed.scores.parasara : scores.parasara,
+              iyer: typeof parsed.scores.iyer === 'number' ? parsed.scores.iyer : scores.iyer,
+              horary: typeof parsed.scores.horary === 'number' ? parsed.scores.horary : scores.horary,
+              bhrigu: typeof parsed.scores.bhrigu === 'number' ? parsed.scores.bhrigu : scores.bhrigu
+            };
+          }
+        }
+      } catch {}
+    }
+    trace.push(`Consistency scores — BV: ${scores.bv.toFixed(2)}, Parasara: ${scores.parasara.toFixed(2)}, Iyer: ${scores.iyer.toFixed(2)}, Horary: ${scores.horary.toFixed(2)}, Bhrigu: ${scores.bhrigu.toFixed(2)}`);
+    if (divergences.length) trace.push(`Divergences flagged: ${divergences.length}`);
+    if (consensus.length) trace.push(`Consensus points: ${consensus.length}`);
+    trace.push('Applying refinements');
+    const finalPrompt = `${basePrompt}\n\nConsensus (if any):\n${consensus.join('\n') || 'None'}\n\nDivergences (if any):\n${divergences.join('\n') || 'None'}\n\nRefinements:\n${refinements.join('\n') || 'None'}\n\nWrite the final answer. Explicitly mention if all concur or if there are disagreements.`;
+    const finalResp = await callOpenAI(finalPrompt, false);
+    if (!finalResp.ok) return err('openai_failed', 502);
+    const finalData = await finalResp.json() as any;
+    const finalReply = finalData?.choices?.[0]?.message?.content || finalText || lastResponse || 'No answer';
+    return json({ reply: finalReply, used_charts: finalUsed, trace, refinement });
   }
 
   // Stream trace events + final answer using OpenAI streaming API
