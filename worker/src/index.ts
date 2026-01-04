@@ -1088,6 +1088,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
         if (horaryExcerpt) sendTrace('Horary excerpt loaded');
         if (bhriguExcerpt) sendTrace('Bhrigu Samhita excerpt loaded');
+        if (!bhriguExcerpt) sendTrace('Bhrigu Samhita excerpt missing (not loaded)');
         sendTrace('Phase 1: Primary reading (BV Raman)');
         // Re-run the loop to emit live trace
         let localCtx = ctx;
@@ -1146,6 +1147,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
         const builtFinal = buildContext(ctx || {});
         const constraintsFinal = builtFinal.mdName ? `Lock these timings: Mahadasha=${builtFinal.mdName}${builtFinal.mdEnd?` (ends ${builtFinal.mdEnd})`:''}${builtFinal.adName?`; Antardasha=${builtFinal.adName}${builtFinal.adEnd?` (ends ${builtFinal.adEnd})`:''}`:''}` : '';
         const streamPrompt = `${builtFinal.text ? builtFinal.text + '\\n\\n' : ''}${constraintsFinal ? constraintsFinal + '\\n' : ''}${langNote}\\nQuestion: ${message}\\nAnswer directly. Do NOT include NEXT_CHARTS.`;
+        sendTrace('Preparing draft passes');
         const bvPrompt = `${streamPrompt}
 ${langNote}
 Framework: B.V. Raman (practical house-based judgment). Use only chart context. Format with Insight + Evidence per bullet.`;
@@ -1338,8 +1340,9 @@ Write the final answer. Explicitly mention if all three concur or if there are d
         }
         send('done', { text: streamedText || finalText || lastResponse || 'No answer', used_charts: finalUsed, trace, refinement });
         controller.close();
-      } catch {
-        send('trace', { text: 'Streaming failed; returning fallback response.' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        send('trace', { text: `Streaming failed; returning fallback response. ${msg}` });
         send('done', { text: finalText || lastResponse || 'No answer', used_charts: usedCharts, trace, refinement: '' });
         controller.close();
       }
