@@ -533,6 +533,7 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   let iyerExcerpt = '';
   let horaryExcerpt = '';
   let bhriguExcerpt = '';
+  let bhriguFetchStatus: number | 'error' | 'skipped' = 'skipped';
   try {
     const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
     const r = await fetch(bookUrl);
@@ -999,6 +1000,7 @@ async function handleChat(req: Request, env: Env): Promise<Response> {
   } catch {}
   try {
     const r = await fetch('https://allthingssecurity.github.io/astrobaba/bhrigu_book.txt');
+    bhriguFetchStatus = r.status;
     if (r.ok) bhriguExcerpt = (await r.text()).slice(0, 6000);
   } catch {}
 
@@ -1192,7 +1194,7 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
         if (iyerExcerpt) sendTrace('Seshadri Iyer excerpt loaded');
         if (horaryExcerpt) sendTrace('Horary excerpt loaded');
         if (bhriguExcerpt) sendTrace('Bhrigu Samhita excerpt loaded');
-        if (!bhriguExcerpt) sendTrace('Bhrigu Samhita excerpt missing (not loaded)');
+        sendTrace(`Bhrigu Samhita excerpt length: ${bhriguExcerpt.length} (status ${bhriguFetchStatus})`);
         sendTrace('Phase 1: Primary reading (BV Raman)');
         // Re-run the loop to emit live trace
         let localCtx = ctx;
