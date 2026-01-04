@@ -532,7 +532,6 @@ async function handleAnalyzeLLM(req: Request, env: Env): Promise<Response> {
   let iyerExcerpt = '';
   let horaryExcerpt = '';
   let bhriguExcerpt = '';
-  let bhriguExcerpt = '';
   try {
     const bookUrl = 'https://allthingssecurity.github.io/astrobaba/astro_book.txt';
     const r = await fetch(bookUrl);
