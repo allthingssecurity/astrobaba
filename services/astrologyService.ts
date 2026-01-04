@@ -305,6 +305,7 @@ export const chatWithBackendStream = async (
         try {
           const payload = JSON.parse(data);
           if (payload?.type === 'delta' && payload?.text) onDelta(payload.text as string);
+          if (payload?.used_charts || payload?.trace || payload?.refinement || payload?.text) onDone(payload);
         } catch {}
       }
     }

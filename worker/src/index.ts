@@ -1228,8 +1228,8 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
           const next = parseNextCharts(lastResponse);
           finalText = lastResponse.replace(/^\s*NEXT_CHARTS:.*$/im, '').trim();
           if (next.length === 0) {
-            sendTrace('Phase 2: Cross-check (Parasara)');
-            sendTrace('Final answer ready; streaming tokens');
+            sendTrace('Phase 2: Cross-verification (BV/Parasara/Iyer/Horary/Bhrigu)');
+            sendTrace('Generating drafts and scoring...');
             ctx = localCtx;
             usedCharts = localUsed;
             requestedCharts = localRequested;
