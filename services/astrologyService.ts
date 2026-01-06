@@ -305,7 +305,8 @@ export const chatWithBackendStream = async (
         try {
           const payload = JSON.parse(data);
           if (payload?.type === 'delta' && payload?.text) onDelta(payload.text as string);
-          if (payload?.used_charts || payload?.trace || payload?.refinement || payload?.text) onDone(payload);
+          // Only call onDone for completion payloads, not delta/trace messages
+          if (payload?.type !== 'delta' && payload?.type !== 'trace' && (payload?.used_charts || Array.isArray(payload?.trace) || payload?.refinement)) onDone(payload);
         } catch {}
       }
     }

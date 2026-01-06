@@ -699,7 +699,6 @@ Do not include any extra prose after the JSON block. Keep bullets short; do not 
       const sendTrace = (msg: string) => {
         trace.push(msg);
         send('trace', { text: msg });
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
       sendTrace(`Language: ${lang === 'hi' ? 'Hindi' : 'English'}`);
       sendTrace(`Worker build: ${WORKER_BUILD}`);
@@ -1180,7 +1179,6 @@ Task: Compare drafts and identify consensus vs disagreements. Output ONLY JSON:
       const sendTrace = (msg: string) => {
         trace.push(msg);
         send('trace', { text: msg });
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'trace', text: msg })}\n\n`));
       };
       try {
         sendTrace('Agent started');
